@@ -9,7 +9,8 @@ class PhotObject(object):
     '''
     def __init__(self, id, ra, dec, filter = None):
         '''
-        TODO
+        Iinitializes a PhotObject py giving an `id`, `ra`, `dec` and,
+        optionalliy, a `filter`.
         '''
         self._id = id
         self._ra = ra
@@ -17,13 +18,38 @@ class PhotObject(object):
         self._filter = filter
 
         self._sums = []
-        self._sums_error - []
+        self._sums_error = []
         self._jds = []
 
-    def append_result(self, jd, sum, error=None):
+    def append_result(self, jd, sum, error=None, filter=None):
         '''
-        TODO
+        Appends a result [jd, sum, error] to the object.
+
+        Parameters:
+            jd : float
+                The julian date or another type of time marking.
+            sum : float
+                The value of meassured photometry.
+            error : float
+                The error in the photometry meassurement.
         '''
+        try:
+            jd = float(jd)
+            sum = float(sum)
+            error = float(error)
+        except:
+            raise ValueError('All the arguments must be numbers.')
+
+        if filter != self._filter and filter is not None:
+            raise ValueError('The filter of the meassurement is different from' +
+                             ' the filter of the object').
+
+        if jd in set(self._jds):
+            raise ValueError('There is already a measure for this time.')
+
+        self._jds.append(jd)
+        self._sums.append(sum)
+        self._sums_error.append(error)
 
     def relative_to(self, photobject):
         '''
