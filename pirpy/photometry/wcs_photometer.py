@@ -46,11 +46,60 @@ class WCSPhotometer(object):
         self._filter = filter
         self._objects = []
 
+        self._file_queue = set([])
+
         if self.algorithm == 'sextractor':
-            from .sep_photometry import *
+            import .sep_photometry as phot
+
+    @property
+    def algorithm(self):
+        return self._algorithm
+
+    @property
+    def filter(self):
+        return self._filter
+
+    @property
+    def objects(self):
+        return self._objects
+
+    @property
+    def file_queue(self):
+        return self._file_queue
 
     def _load_image(self, fname):
         '''
         Loads one fits file, returning the WCS, header and the data matriz.
         Internal use.
+
+        Returns:
+            wcs : ~astropy.wcs.WCS~
+                The astropy WCS from the image
+            data : ~np.ndarray~
+                The data of the image.
+            jd : float
+                The julian date of the image.
         '''
+        f = fits.open(fname)
+        wcs = WCS(f[0].header)
+        data = f[0].data
+        jd = float(f[0].header['JD'])
+        return wcs, data, jd
+
+    def queue_files(self, fnames):
+        '''
+        Queue a list of files to the photometer queue.
+        '''
+        if not isinstance(fnames, list):
+            fnames = [fnames]
+
+        self._file_queue = self._file_queue + set(fnames)
+
+    def aperture_photometry(self, r, r_in, r_out):
+        '''
+        Process the photometry for the file queue.
+        '''
+        for i in self._file_queue:
+            wcs, data, jd = self._load_image(i)
+            #TODO: Continuar aqui
+        

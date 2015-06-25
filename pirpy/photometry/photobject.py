@@ -21,6 +21,34 @@ class PhotObject(object):
         self._sums_error = []
         self._jds = []
 
+    @property
+    def ra(self):
+        return self._ra
+
+    @property
+    def dec(self):
+        return self._dec
+
+    @property
+    def id(self):
+        return self._id
+
+    @property
+    def filter(self):
+        return self.filter
+
+    @property
+    def sums(self):
+        return self._sums
+
+    @property
+    def sums_error(self):
+        return self._sums_error
+
+    @property
+    def jd(self):
+        return self._jd
+
     def append_result(self, jd, sum, error=None, filter=None):
         '''
         Appends a result [jd, sum, error] to the object.
