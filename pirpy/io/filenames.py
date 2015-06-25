@@ -4,6 +4,8 @@ Functions to easy generate lists of fits files names, following some standarts.
 
 from os.path import join
 
+__all__ = ['from_basename', 'from_file']
+
 def from_basename(basename, start_count, n_img, pad, sep='_', base_dir=''):
     '''
     This routine generates a file list, based on a basename, incrementing from
