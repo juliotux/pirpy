@@ -17,10 +17,3 @@ Requirements
 * `SEP (if you want Sextractor photometry algorithm) <https://github.com/kbarbary/sep>`_
 * `Scipy and numpy`
 * `Astrometry.net <http://astrometry.net/>`_
-
-Status reports for developers
------------------------------
-
-.. image:: https://travis-ci.org/astropy/package-template.png?branch=master
-    :target: https://travis-ci.org/astropy/package-template
-    :alt: Test Status
