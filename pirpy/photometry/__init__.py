@@ -1,1 +1,1 @@
-from .pos_cat import PositionCatalog
+import .photometry

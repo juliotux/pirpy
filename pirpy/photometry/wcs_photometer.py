@@ -7,8 +7,10 @@ from astropy.stats import sigma_clipped_stats
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord
 
-from .photobject import PhotObject
+from .photobject import PhotObject, PhotColection
 from .allowed_algorithms import allowed, todo
+from .pos_cat import PositionCatalog
+from ..math.list_tools import to_list, match_lengths
 
 __all__ = ['WCSPhotometer']
 
@@ -44,7 +46,9 @@ class WCSPhotometer(object):
 
         self._algorithm = algorithm
         self._filter = filter
-        self._objects = []
+        self._objects = PhotColection(filter)
+
+        self.position_catalog = PositionCatalog()
 
         self._file_queue = set([])
 
@@ -67,6 +71,10 @@ class WCSPhotometer(object):
     def file_queue(self):
         return self._file_queue
 
+    @property
+    def phot_results(self):
+        return self._objects
+
     def _load_image(self, fname):
         '''
         Loads one fits file, returning the WCS, header and the data matriz.
@@ -86,6 +94,27 @@ class WCSPhotometer(object):
         jd = float(f[0].header['JD'])
         return wcs, data, jd
 
+    def _get_radec(self, wcs, x, y):
+        '''
+        Returns the RA and DEC coordinates from a list of (x, y) positions and a
+        wcs.
+        '''
+        coords = SkyCoord.from_pixel(x, y, wcs)
+        return coords.ra.degree, coords.dec.degree
+
+    def _get_id(self, ra, dec, add_new=True):
+        '''
+        Returns the id of the best match from a RA,DEC pair in the position catalog.
+        '''
+        ra = to_list(ra)
+        dec = to_list(dec)
+
+        ids = [None]*len(ra)
+        for i in range(len(ra)):
+            ids[i] = self.position_catalog.query_nn(ra[i], dec[i], add_new=add_new)
+
+        return ids
+
     def queue_files(self, fnames):
         '''
         Queue a list of files to the photometer queue.
@@ -95,11 +124,25 @@ class WCSPhotometer(object):
 
         self._file_queue = self._file_queue + set(fnames)
 
-    def aperture_photometry(self, r, r_in, r_out):
+    def aperture_photometry(self, r, r_in, r_out,
+                            snr, bkg_method='media',
+                            elipse=False,
+                            add_uid=True
+                            *args, **kwargs):
         '''
         Process the photometry for the file queue.
         '''
+        #TODO: now, don't handle the elipse photometry
+        #TODO: Not handle error flags at this momment.
         for i in self._file_queue:
             wcs, data, jd = self._load_image(i)
-            #TODO: Continuar aqui
-        
+            bkg, rms = phot.get_background(data, bkg_method, **kwargs)
+            x, y = phot.detect_sources(data, phot.get_threshold(bkg, rms, snr), **kwargs)
+            flux, fluxerr, flag = phot.aperture_photometry(data, zip(x,y),
+                                                           r, r_in, r_out,
+                                                           elipse=False,
+                                                           **kwargs)
+            ra, dec = self._get_radec(x, y, wcs)
+            id = self._get_id(ra, dec, add_new=add_uid)
+            self._objects.add_results(id, jd, ra, dec, flux, fluxerr)
+

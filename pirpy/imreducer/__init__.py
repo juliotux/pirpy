@@ -1,1 +1,1 @@
-from .imreducer import ImReduce
+import .imreducer

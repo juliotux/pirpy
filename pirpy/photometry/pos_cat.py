@@ -5,17 +5,19 @@ from astropy.io import ascii
 import astropy.units as u
 import numpy as np
 
+from ..math.list_tools import to_list
+
 '''
 Module to match a point with RA,DEC coordinates into a catalog. If not match
 inside a distance R, it can create a new object in the catalog.
 '''
 
+__all__ = ['PositionCatalog']
+
 class PositionCatalog(object):
     '''
     High level object to handle position catalogs to use in photometry.
     '''
-    #TODO: modificar as funcoes de carregamento de tabelas para possibilitar
-    #      persinalização das chaves usadas.
     def __init__(self,**kwargs):
         self._ra = []
         self._dec = []
@@ -41,7 +43,7 @@ class PositionCatalog(object):
     def id(self):
         return self._id
 
-    def add_objects(self, id, ra, dec):
+    def add_objects(self, id, ra, dec, pass_if_exists=True):
         '''
         Add objects to the PositionCatalog.
 
@@ -53,17 +55,14 @@ class PositionCatalog(object):
             dec : float or array
                 The DEC coordinates of the objects.
         '''
-        if not isinstance(id, (tuple, list, set, np.ndarray)):
-            id = [id]
-        if not isinstance(ra, (tuple, list, set, np.ndarray)):
-            ra = [ra]
-        if not isinstance(dec, (tuple, list, set, np.ndarray)):
-            dec = [dec]
+        id = to_list(id)
+        ra = to_list(ra)
+        dec = to_list(dec)
 
         if len(ra) != len(dec) or len(ra) != len(id):
             raise ValueError('The id, ra and dec variables must have the same dimentions')
 
-        #check if the user is trying to add an existent object. If yes, skip it
+        #check if the user is trying to add an existent object.
         for i in range(len(id)):
             if id[i] not in set(self._id):
                 id2 = ''
@@ -75,6 +74,9 @@ class PositionCatalog(object):
                 self._id.append(id2)
                 self._ra.append(float(ra[i]))
                 self._dec.append(float(dec[i]))
+            else:
+                if not pass_if_exists:
+                    raise ValueError('The object ' + str(id[i]) + ' is already in this position catalog.')
 
         self._kdtree = cKDTree(np.dstack([ra, dec])[0])
 
@@ -88,29 +90,42 @@ class PositionCatalog(object):
         except:
             return False
 
-    def _coords_from_simbad_table(self, table):
+    def _coords_from_table(self, table, ra_key='RA', dec_key='DEC'):
         for i in range(len(table)):
-            ra = table[i]['RA']
-            dec = table[i]['DEC']
+            try:
+                ra = table[i][ra_key]
+                dec = table[i][dec_key]
+            except:
+                raise ValueError('The column names for RA and DEC are wrong. ' +
+                                 'The values gived by user are: '
+                                 + str(ra_key) + ' ' + str(dec_key))
             if not self._try_float(ra) and not self._try_float(dec):
                 c = SkyCoord(ra, dec, frame='icrs', unit=('hourangle','degree'))
-                table[i]['RA'] = c.ra.degree
-                table[i]['DEC'] = c.dec.degree
-        return(table['RA'].data.data, table['DEC'].data.data)
+                table[i][ra_key] = c.ra.degree
+                table[i][dec_key] = c.dec.degree
 
-    def _coords_and_id_from_simbad_table(self, table):
+        return(table[ra_key].data.data, table[dec_key].data.data)
+
+    def _coords_and_id_from_table(self, table, id_key='MAIN_ID', ra_key='RA', dec_key='DEC'):
         '''
         Returns arrays with id, ra and dec from an astropy.table in a format like
         the queried from Simbad via ~astroquery~.
         '''
         try:
-            id = table['MAIN_ID'].data.data
-            ra, dec = self._coords_from_simbad_table(table)
+            id = table[id_key].data.data
         except:
-            raise KeyError('The astropy.table column names to read are' +
-                           ' MAIN_ID, RA and DEC. Please check your table.')
+            raise KeyError('The column name for id is wrong. The value gived by user is: ' + str(id_key))
 
-        self.add_objects(id, ra, dec)
+        ra, dec = self._coords_from_simbad_table(table, ra_key, dec_key)
+        return id, ra, dec
+
+    def add_from_table(self, table, id_key='MAIN_ID', ra_key='RA', dec_key='DEC',
+                       pass_if_exists=True):
+        '''
+        Loads a ~astropy.table~ and append it to the actual catalog.
+        '''
+        id, ra, dec = self._coords_and_id_from_table(table, id_key, ra_key, dec_key)
+        self.add_objects(id, ra, dec, pass_if_exists=pass_if_exists)
 
     def query_nn(self, ra, dec):
         '''
@@ -152,7 +167,7 @@ class PositionCatalog(object):
             else:
                 return None
 
-    def from_simbad(self, center, radius):
+    def add_from_simbad(self, center, radius, pass_if_exists=True):
         '''
         Loads a catalog from an ~astroquery.simbad~ query.
 
@@ -164,8 +179,8 @@ class PositionCatalog(object):
         '''
         from astroquery.simbad import Simbad
 
-        query = Simbad.query_region(center, radius)
-        self._coords_and_id_from_simbad_table(query)
+        self.add_from_table(Simbad.query_region(center, radius),
+                            pass_if_exists=pass_if_exists)
 
     def write_to(self, fname):
         '''
@@ -216,16 +231,11 @@ class PhotometryCatalog(object):
             unit : float or array
                 The unit of the fluxes.
         '''
-        if not isinstance(id, (tuple, list, set, np.ndarray)):
-            id = [id]
-        if not isinstance(flux, (tuple, list, set, np.ndarray)):
-            flux = [flux]
-        if not isinstance(flux_error, (tuple, list, set, np.ndarray)):
-            flux_error = [flux_error]
-        if not isinstance(unit, (tuple, list, set, np.ndarray)):
-            unit = [unit]*len(flux)
-        if not isinstance(bibcode, (tuple, list, set, np.ndarray)):
-            bibcode = [bibcode]*len(flux)
+        id = to_list(id)
+        flux = to_list(flux)
+        flux_error = to_list(flux_error)
+        unit = to_list(unit)
+        bibcode = to_list(bibcode)
 
         if len(id) != len(flux):
             raise ValueError('The id flux variables must have the same dimentions')

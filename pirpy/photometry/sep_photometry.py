@@ -84,7 +84,7 @@ def get_threshold(background, rms, snr):
     return background + (rms*snr)
 
 
-def get_beckground(data, bkg_method='median', *args, **kwargs):
+def get_background(data, bkg_method='median', *args, **kwargs):
     '''
     Determine the background image or value from the data.
 
@@ -142,7 +142,7 @@ def detect_sources(data, threshold, elipse = False, *args, **kwargs):
         a, b, theta : ~numpy.ndarray~
             The parameters of the detected elipses.
     '''
-    objs = = sep.extract(data, threshold, **kwargs)
+    objs = sep.extract(data, threshold, **kwargs)
 
     if elipse:
         return objs['x'], objs['y'], objs['a'], objs['b'], objs['theta']
@@ -184,5 +184,5 @@ def aperture_photometry(data, positions, r, r_in, r_out,
         a, b, theta = _extract_abtheta(abtheta)
         return sep.sum_ellipse(data, x, y, a, b, theta, r, bkgann=(r_in, r_out), **kwargs)
     else:
-        sep.sum_circle(data, x, y, r, bkgann=(r_in, r_out), **kwargs)
+        return sep.sum_circle(data, x, y, r, bkgann=(r_in, r_out), **kwargs)
 

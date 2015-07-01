@@ -12,5 +12,8 @@ from ._astropy_init import *
 
 # For egg_info test builds to pass, put package imports here.
 if not _ASTROPY_SETUP_:
-    from . import io, math, imreducer, wcscalib
-    from . import photometry
+    from .io import *
+    from .math import *
+    from .imreducer import *
+    from .wcscalib import *
+    from .photometry import *
