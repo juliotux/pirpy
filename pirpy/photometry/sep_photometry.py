@@ -108,7 +108,7 @@ def get_background(data, bkg_method='median', *args, **kwargs):
     '''
     bkg = rms = None
 
-    if method == 'default':
+    if bkg_method == 'default':
         try:
             back = sep.Background(data, **kwargs)
         except:
@@ -116,8 +116,8 @@ def get_background(data, bkg_method='median', *args, **kwargs):
             back = sep.Background(data, **kwargs)
         bkg = back.back()
         rms = back.globalrms
-    elif method == 'median':
-        mean, bkg, rms = sigma_clipped_stats()
+    elif bkg_method == 'median':
+        mean, bkg, rms = sigma_clipped_stats(data)
     else:
         raise ValueError('Unrecognized ' + str(bkg_method) + ' method.')
 
@@ -142,6 +142,7 @@ def detect_sources(data, threshold, elipse = False, *args, **kwargs):
         a, b, theta : ~numpy.ndarray~
             The parameters of the detected elipses.
     '''
+    data = _fix_data(data)
     objs = sep.extract(data, threshold, **kwargs)
 
     if elipse:
@@ -176,6 +177,8 @@ def aperture_photometry(data, positions, r, r_in, r_out,
         flux, fluxerr, flags : ~numpy.ndarray~
             The sum of the aperture, with annulus sky subtraction, and its error.
     '''
+    data = _fix_data(data)
+
     x, y = _extract_xy(positions)
 
     if elipse:

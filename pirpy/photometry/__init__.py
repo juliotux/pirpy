@@ -1,1 +1,1 @@
-import .photometry
+from . import photometry

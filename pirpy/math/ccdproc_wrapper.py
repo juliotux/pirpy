@@ -10,7 +10,7 @@ from ccdproc import subtract_dark as sd
 from astropy import units as u
 from numpy import dtype as npdtype
 
-from ..io import ccd_read as read
+from ..io.io_tool import ccd_read as read
 from .ccd_type import verify_ccdlist
 from ..mp import mult_ret
 

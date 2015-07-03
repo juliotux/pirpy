@@ -1,1 +1,1 @@
-import .math
+from . import math

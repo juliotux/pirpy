@@ -1,3 +1,3 @@
 from .pos_cat import PositionCatalog
-from .xy_photometry import *
-from .wcs_photometry import *
+#from .xy_photometry import *
+from .wcs_photometer import *

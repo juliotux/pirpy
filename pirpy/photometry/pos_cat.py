@@ -156,13 +156,16 @@ class PositionCatalog(object):
                 The ID of the matched object. Returns None if no object matched
                 the point.
         '''
+        if self._kdtree is None:
+            self.add_objects(None, ra, dec)
+
         index, dist = self.query_nn(ra, dec)
 
         if dist*u.degree <= r_lim:
             return self._id[index]
         else:
             if add_new:
-                add_objects(None, ra, dec)
+                self.add_objects(None, ra, dec)
                 return self._id[-1]
             else:
                 return None

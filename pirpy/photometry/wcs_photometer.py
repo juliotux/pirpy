@@ -52,9 +52,6 @@ class WCSPhotometer(object):
 
         self._file_queue = set([])
 
-        if self.algorithm == 'sextractor':
-            import .sep_photometry as phot
-
     @property
     def algorithm(self):
         return self._algorithm
@@ -82,7 +79,7 @@ class WCSPhotometer(object):
 
         Returns:
             wcs : ~astropy.wcs.WCS~
-                The astropy WCS from the image
+                The astropy WCS from the image.
             data : ~np.ndarray~
                 The data of the image.
             jd : float
@@ -94,13 +91,13 @@ class WCSPhotometer(object):
         jd = float(f[0].header['JD'])
         return wcs, data, jd
 
-    def _get_radec(self, wcs, x, y):
+    def _get_radec(self, x, y, wcs):
         '''
         Returns the RA and DEC coordinates from a list of (x, y) positions and a
         wcs.
         '''
-        coords = SkyCoord.from_pixel(x, y, wcs)
-        return coords.ra.degree, coords.dec.degree
+        ra, dec = wcs.wcs_pix2world(x, y, 0)
+        return ra, dec
 
     def _get_id(self, ra, dec, add_new=True):
         '''
@@ -111,7 +108,7 @@ class WCSPhotometer(object):
 
         ids = [None]*len(ra)
         for i in range(len(ra)):
-            ids[i] = self.position_catalog.query_nn(ra[i], dec[i], add_new=add_new)
+            ids[i] = self.position_catalog.match_point(ra[i], dec[i], add_new=add_new)
 
         return ids
 
@@ -119,15 +116,14 @@ class WCSPhotometer(object):
         '''
         Queue a list of files to the photometer queue.
         '''
-        if not isinstance(fnames, list):
-            fnames = [fnames]
+        fnames = to_list(fnames)
 
-        self._file_queue = self._file_queue + set(fnames)
+        self._file_queue = self._file_queue.union(set(fnames))
 
     def aperture_photometry(self, r, r_in, r_out,
-                            snr, bkg_method='media',
+                            snr, bkg_method='median',
                             elipse=False,
-                            add_uid=True
+                            add_uid=True,
                             *args, **kwargs):
         '''
         Process the photometry for the file queue.
@@ -135,6 +131,8 @@ class WCSPhotometer(object):
         #TODO: now, don't handle the elipse photometry
         #TODO: Not handle error flags at this momment.
         for i in self._file_queue:
+            if self.algorithm == 'sextractor':
+                from . import sep_photometry as phot
             wcs, data, jd = self._load_image(i)
             bkg, rms = phot.get_background(data, bkg_method, **kwargs)
             x, y = phot.detect_sources(data, phot.get_threshold(bkg, rms, snr), **kwargs)
@@ -144,5 +142,5 @@ class WCSPhotometer(object):
                                                            **kwargs)
             ra, dec = self._get_radec(x, y, wcs)
             id = self._get_id(ra, dec, add_new=add_uid)
-            self._objects.add_results(id, jd, ra, dec, flux, fluxerr)
+            self._objects.add_results(jd, id, ra, dec, flux, fluxerr)
 

@@ -1,1 +1,1 @@
-import .wcscalib
+from . import wcscalib

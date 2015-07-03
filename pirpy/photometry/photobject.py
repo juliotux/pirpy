@@ -38,7 +38,7 @@ class PhotObject(object):
 
     @property
     def filter(self):
-        return self.filter
+        return self._filter
 
     @property
     def sums(self):
@@ -53,7 +53,7 @@ class PhotObject(object):
         return self._jds
 
     def get_sum(self, jd):
-        return [j,k for i,j,k in
+        return [(j,k) for i,j,k in
                 zip(self._jds, self._sums, self._sums_error)
                 if i == jd][0]
 
@@ -74,11 +74,12 @@ class PhotObject(object):
             sum = float(sum)
             error = float(error)
         except:
+            print jd, sum, error
             raise ValueError('All the arguments must be numbers.')
 
         if filter != self._filter and filter is not None:
             raise ValueError('The filter of the meassurement is different from' +
-                             ' the filter of the object').
+                             ' the filter of the object.')
 
         if jd in set(self._jds):
             raise ValueError('There is already a measure for this time.')
@@ -92,21 +93,22 @@ class PhotObject(object):
         Make the relation of the photometry of this object to other.
         '''
         #TODO: Make the algorithm faster
-        jd = phot = error = []
+        #FIXME: There is an error in the results
+        fjd = fphot = ferror = []
 
         for i in range(len(self._jds)):
-            jd1 = self._jds[1]
+            jd1 = self._jds[i]
             if jd1 in set(photobject.jd):
                 phot1 = self._sums[i]
                 error1 = self._sums_error[i]
                 phot2, error2 = photobject.get_sum(jd1)
                 photf = phot1/phot2
                 errorf = photf*((error1/phot1) + (error2/phot2))
-                jd.append(jd1)
-                phot.append(photf)
-                error.append(errorf)
+                fjd.append(jd1)
+                fphot.append(photf)
+                ferror.append(errorf)
 
-        return jd, phot, error
+        return fjd, fphot, ferror
 
 
 class PhotColection(object):
@@ -123,30 +125,27 @@ class PhotColection(object):
 
     @property
     def objects(self):
-        id = ra = dec = []
+        result = {'ID':[], 'RA':[], 'DEC':[]}
         for i in self._list.keys():
-            id.append(i)
-            ra.append(self._list[i].ra)
-            dec.append(self._list[i].dec)
-        return Table([id, ra, dec],
-                     names=['ID', 'RA', 'DEC'],
-                     unit=[None, 'degree', 'degree'])
+            result['ID'].append(i)
+            result['RA'].append(self._list[i].ra)
+            result['DEC'].append(self._list[i].dec)
+        return Table(result)
 
     @property
     def get_photometry(self):
-        id = jd = flux = flux_error = []
+        result = {'ID':[], 'JD':[], 'FLUX':[], 'FLUX_ERROR':[]}
 
         for i in self._list.keys():
             for j, f, e in zip(self._list[i].jd,
                                self._list[i].sums,
                                self._list[i].sums_error):
-                id.append(i)
-                jd.append(j)
-                flux.append(f)
-                flux_error.append(e)
+                result['ID'].append(i)
+                result['JD'].append(j)
+                result['FLUX'].append(f)
+                result['FLUX_ERROR'].append(e)
 
-        return Table([id, jd, flux, flux_error],
-                     names = ('ID', 'JD', 'FLUX', 'FLUX_ERROR'))
+        return Table(result)
 
     def add_objects(self, id, ra=None, dec=None):
         '''
@@ -162,11 +161,11 @@ class PhotColection(object):
         Append a result list to the objects, guided by id.
         '''
         jd = to_list(jd)
+        id = to_list(id)
         ra = to_list(ra)
         dec = to_list(dec)
         flux = to_list(flux)
         flux_error = to_list(flux_error)
-        flux_flag = to_list(flux_flag)
 
         jd, id, ra, dec, flux, flux_error = match_lengths([jd, id, ra, dec, flux, flux_error], len(id))
 
@@ -174,7 +173,7 @@ class PhotColection(object):
             if id[i] not in self.ids and add_if_not_exists:
                 self.add_objects(id[i], ra[i], dec[i])
             if id[i] in self.ids:
-                self._list[i].add_result(jd[i], flux[i], flux_error[i])
+                self._list[id[i]].add_result(jd[i], flux[i], flux_error[i])
 
     def compare_objects(self, id1, id2):
         '''
