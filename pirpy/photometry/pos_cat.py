@@ -120,7 +120,7 @@ class PositionCatalog(object):
         except:
             raise KeyError('The column name for id is wrong. The value gived by user is: %s' % id_key)
 
-        ra, dec = self._coords_from_simbad_table(table, ra_key, dec_key)
+        ra, dec = self._coords_from_table(table, ra_key, dec_key)
         return id, ra, dec
 
     def add_from_table(self, table, id_key='MAIN_ID', ra_key='RA', dec_key='DEC',
