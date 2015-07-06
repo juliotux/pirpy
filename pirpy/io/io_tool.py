@@ -5,11 +5,14 @@ Module to handle io operations using multiprocess or batch operations.
 from ccdproc import CCDData
 from astropy import units as u
 from os.path import join
+
 from ..mp import mult_ret
+
+__all__ = ['path_join','ccd_read']
 
 ################################################################################
 
-def __path_join(path):
+def _path_join(path):
     '''
     Wrap the os.path.join function to work easy with arrays of file names.
     '''
@@ -36,14 +39,14 @@ def path_join(path, filelist, **kwargs):
     if isinstance(filelist, list):
         for i in filelist:
             data.append([path, i])
-        return mult_ret(__path_join, data,
+        return mult_ret(_path_join, data,
                         kwargs.get('nprocess',1))
     elif isinstance(filelist, basestring):
-        return __path_join([path,filelist])
+        return _path_join([path,filelist])
 
 ################################################################################
 
-def __read(filename, unit, dtype=None):
+def _read(filename, unit, dtype=None):
     '''
     Wrap the CCDData.read, including a dtype variable to
     save memory.
@@ -72,8 +75,8 @@ def ccd_read(filelist, **kwargs):
     data = []
     if isinstance(filelist, list):
         for i in filelist:
-            data.append(__read(i, unit, dt))
+            data.append(_read(i, unit, dt))
     elif isinstance(filelist, basestring):
-        data.append(__read(filelist, unit, dt))
+        data.append(_read(filelist, unit, dt))
 
     return data

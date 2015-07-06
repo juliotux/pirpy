@@ -3,8 +3,9 @@ Functions to easy generate lists of fits files names, following some standarts.
 '''
 
 from os.path import join
+import glob
 
-__all__ = ['from_basename', 'from_file']
+__all__ = ['from_basename', 'from_file', 'ls']
 
 def from_basename(basename, start_count, n_img, pad, sep='_', base_dir=''):
     '''
@@ -69,3 +70,9 @@ def from_file(filename):
     for i in f1:
         f2.append(i.strip('\n'))
     return f2
+
+def ls(pattern):
+    '''
+    Returns a list of filenames with a `ls` pattern.
+    '''
+    return glob.glob(str(pattern))
