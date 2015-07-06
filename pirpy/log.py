@@ -3,11 +3,11 @@ import logging
 
 __all__ = ['pirpyfromat','log','create_log']
 
-pirpyfromat = "%(asctime)s %(name)-12s %(levelname)-8s %(message)s"
+pirpyfromat = "%(asctime)s [%(levelname)8s]: %(message)s (%(name)s)"
     
 class PirpyLogger(logger.AstropyLogger):
     def enable_log_to_file(self, filename, filter_level=None, filter_origin=None,
-                           format=None):
+                           format=pirpyfromat):
         self._fh = logging.FileHandler(filename)
         if filter_level is not None:
             self._fh.setLevel(filter_level)

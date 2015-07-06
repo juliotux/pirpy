@@ -150,7 +150,7 @@ def detect_sources(data, threshold, elipse = False, *args, **kwargs):
     else:
         return objs['x'], objs['y']
 
-def aperture_photometry(data, positions, r, r_in, r_out,
+def aperture_photometry(data, x, y, r, r_in, r_out,
                         elipse = False, abtheta = None,
                         *args, **kwargs):
     '''
@@ -159,7 +159,7 @@ def aperture_photometry(data, positions, r, r_in, r_out,
     Parameters:
         data : ~numpy.ndarray~
             2D image data.
-        positions : list of list of float
+        x, y : list of list of float
             The list containing the pairs (x,y) of the objects.
         r : float
             The radius of the circular aperture to do the sum.
@@ -178,8 +178,6 @@ def aperture_photometry(data, positions, r, r_in, r_out,
             The sum of the aperture, with annulus sky subtraction, and its error.
     '''
     data = _fix_data(data)
-
-    x, y = _extract_xy(positions)
 
     if elipse:
         if abtheta is None:

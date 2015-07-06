@@ -12,6 +12,8 @@ from .allowed_algorithms import allowed, todo
 from .pos_cat import PositionCatalog
 from ..math.list_tools import to_list, match_lengths
 
+from ..log import log
+
 __all__ = ['WCSPhotometer']
 
 class WCSPhotometer(object):
@@ -19,7 +21,7 @@ class WCSPhotometer(object):
     This class handles the photometry process basic functions using the
     positions in sky coordinates.
     '''
-    def __init__(self, algorithm, filter=None, *args, **kwargs):
+    def __init__(self, algorithm, filter=None, log_file=None, *args, **kwargs):
         '''
         Parameters:
             algorithm : string
@@ -36,6 +38,9 @@ class WCSPhotometer(object):
             filter : string
                 The filter of the photometry, just for organization and avoid
                 mistakes in the process.
+            log_file : string
+                The filename to write the log. If not set, just screen log will
+                be displayed.
         '''
 
         if algorithm not in allowed:
@@ -51,6 +56,9 @@ class WCSPhotometer(object):
         self.position_catalog = PositionCatalog()
 
         self._file_queue = set([])
+
+        if log_file is not None:
+            log.enable_log_to_file(log_file)
 
     @property
     def algorithm(self):
@@ -89,6 +97,7 @@ class WCSPhotometer(object):
         wcs = WCS(f[0].header)
         data = f[0].data
         jd = float(f[0].header['JD'])
+        log.debug("Image %s sucessful loaded." % fname)
         return wcs, data, jd
 
     def _get_radec(self, x, y, wcs):
@@ -117,8 +126,9 @@ class WCSPhotometer(object):
         Queue a list of files to the photometer queue.
         '''
         fnames = to_list(fnames)
-
-        self._file_queue = self._file_queue.union(set(fnames))
+        fnames = set(fnames)
+        self._file_queue = self._file_queue.union(fnames)
+        log.info("%i added to file_queue." % len(fnames))
 
     def aperture_photometry(self, r, r_in, r_out,
                             snr, bkg_method='median',
@@ -130,17 +140,20 @@ class WCSPhotometer(object):
         '''
         #TODO: now, don't handle the elipse photometry
         #TODO: Not handle error flags at this momment.
+        if self.algorithm == 'sextractor':
+            from . import sep_photometry as phot
+
         for i in self._file_queue:
-            if self.algorithm == 'sextractor':
-                from . import sep_photometry as phot
+            log.info("Meassuring photometry from %s file." % i)
             wcs, data, jd = self._load_image(i)
             bkg, rms = phot.get_background(data, bkg_method, **kwargs)
             x, y = phot.detect_sources(data, phot.get_threshold(bkg, rms, snr), **kwargs)
-            flux, fluxerr, flag = phot.aperture_photometry(data, zip(x,y),
+            log.info("%i detected sources." % len(x))
+            flux, fluxerr, flag = phot.aperture_photometry(data, x, y,
                                                            r, r_in, r_out,
                                                            elipse=False,
                                                            **kwargs)
             ra, dec = self._get_radec(x, y, wcs)
             id = self._get_id(ra, dec, add_new=add_uid)
-            self._objects.add_results(jd, id, ra, dec, flux, fluxerr)
+            self._objects.add_results(jd, id, flux, fluxerr, ra, dec)
 

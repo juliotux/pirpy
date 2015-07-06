@@ -8,6 +8,8 @@ from astropy.table import Table
 
 from ..math.list_tools import to_list, match_lengths
 
+from ..log import log
+
 __all__ = ['PhotObject', 'PhotColection']
 
 class PhotObject(object):
@@ -15,11 +17,12 @@ class PhotObject(object):
     The photometry storage for a single object, with fast comparision with
     another.
     '''
-    def __init__(self, ra, dec, filter = None):
+    def __init__(self, id, ra, dec, filter = None):
         '''
         Iinitializes a PhotObject py giving an `ra`, `dec` and,
         optionalliy, a `filter`.
         '''
+        self._id = id
         self._ra = ra
         self._dec = dec
         self._filter = filter
@@ -74,19 +77,20 @@ class PhotObject(object):
             sum = float(sum)
             error = float(error)
         except:
-            print jd, sum, error
-            raise ValueError('All the arguments must be numbers.')
+            log.error('All the arguments must be numbers. Got: jd=%f   sum=%f   error=%f' % (jd, sum, error))
+            raise ValueError('Not number values.')
 
         if filter != self._filter and filter is not None:
-            raise ValueError('The filter of the meassurement is different from' +
-                             ' the filter of the object.')
+            log.error('The filter of the meassurement is different from the filter of the object.')
 
         if jd in set(self._jds):
-            raise ValueError('There is already a measure for this time.')
+            log.error('There is already a measure for this time.')
 
         self._jds.append(jd)
         self._sums.append(sum)
         self._sums_error.append(error)
+
+        log.debug('Added jd=%f   sum=%f   error=%f to object %s' % (jd, sum, error, self._id) )
 
     def relative_to(self, photobject):
         '''
@@ -94,19 +98,18 @@ class PhotObject(object):
         '''
         #TODO: Make the algorithm faster
         #FIXME: There is an error in the results
-        fjd = fphot = ferror = []
+        fjd = []
+        fphot = []
+        ferror = []
 
-        for i in range(len(self._jds)):
-            jd1 = self._jds[i]
+        for jd1, pht1, err1 in zip(self._jds, self._sums, self._sums_error):
             if jd1 in set(photobject.jd):
-                phot1 = self._sums[i]
-                error1 = self._sums_error[i]
-                phot2, error2 = photobject.get_sum(jd1)
-                photf = phot1/phot2
-                errorf = photf*((error1/phot1) + (error2/phot2))
+                pht2, err2 = photobject.get_sum(jd1)
+                pht = pht1/pht2
+                err = pht*((err1/pht1) + (err2/pht2))
                 fjd.append(jd1)
-                fphot.append(photf)
-                ferror.append(errorf)
+                fphot.append(pht)
+                ferror.append(err)
 
         return fjd, fphot, ferror
 
@@ -147,16 +150,23 @@ class PhotColection(object):
 
         return Table(result)
 
+    def get_object(self, id):
+        '''
+        Returns a complete object with an `id`.
+        '''
+        return self._list[id]
+
     def add_objects(self, id, ra=None, dec=None):
         '''
         Adds a object to the list.
         '''
         if id in self._list.keys():
-            raise ValueError('The object ' + str(id) + ' is already in the colection')
+            raise ValueError('The object %s is already in the colection' % id)
         else:
-            self._list[id] = PhotObject(ra, dec, self._filter)
+            self._list[id] = PhotObject(id, ra, dec, self._filter)
+            log.debug('Added the object %s to PhotColection' % id)
 
-    def add_results(self, jd, id, ra, dec, flux, flux_error, add_if_not_exists=True):
+    def add_results(self, jd, id, flux, flux_error, ra=None, dec=None, add_if_not_exists=True):
         '''
         Append a result list to the objects, guided by id.
         '''

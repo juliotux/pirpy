@@ -7,6 +7,8 @@ import numpy as np
 
 from ..math.list_tools import to_list
 
+from ..log import log
+
 '''
 Module to match a point with RA,DEC coordinates into a catalog. If not match
 inside a distance R, it can create a new object in the catalog.
@@ -74,11 +76,13 @@ class PositionCatalog(object):
                 self._id.append(id2)
                 self._ra.append(float(ra[i]))
                 self._dec.append(float(dec[i]))
+                log.debug("Added the object %s: %f,%f to the position catalog"
+                          % (id2, float(ra[i]), float(dec[i])))
             else:
                 if not pass_if_exists:
-                    raise ValueError('The object ' + str(id[i]) + ' is already in this position catalog.')
+                    raise ValueError("The object %s is already in this position catalog." % (id[i]))
 
-        self._kdtree = cKDTree(np.dstack([ra, dec])[0])
+        self._kdtree = cKDTree(np.dstack([self._ra, self._dec])[0])
 
     def _try_float(self, value):
         '''
@@ -114,7 +118,7 @@ class PositionCatalog(object):
         try:
             id = table[id_key].data.data
         except:
-            raise KeyError('The column name for id is wrong. The value gived by user is: ' + str(id_key))
+            raise KeyError('The column name for id is wrong. The value gived by user is: %s' % id_key)
 
         ra, dec = self._coords_from_simbad_table(table, ra_key, dec_key)
         return id, ra, dec
@@ -132,6 +136,8 @@ class PositionCatalog(object):
         Query the nearest neighbors of a point with coordinates ra and dec.
         '''
         dist, index = self._kdtree.query([ra, dec])
+        log.debug("The nearest neighbor of the %f,%f point is the %i: %f, %f, with a distance of %f"
+                  % (ra, dec, index, self._ra[index], self._dec[index], dist))
         return(index, dist)
 
     def match_point(self, ra, dec, r_lim=2*u.arcsec, add_new=False):
@@ -162,9 +168,12 @@ class PositionCatalog(object):
         index, dist = self.query_nn(ra, dec)
 
         if dist*u.degree <= r_lim:
+            log.debug("Matched %f,%f point with %s: %f, %f"
+                      % (ra, dec, self._id[index], self._ra[index], self._dec[index]))
             return self._id[index]
         else:
             if add_new:
+                log.debug("Not matched, addind new object.")
                 self.add_objects(None, ra, dec)
                 return self._id[-1]
             else:
@@ -194,118 +203,3 @@ class PositionCatalog(object):
 
         ascii.write(table, fname)
 
-class PhotometryCatalog(object):
-    '''
-    High level object to handle catalogs of photometric standart stars to use in
-    the comparision in relative photometry.
-    '''
-    def __init__(self, filter, *args, **kwargs):
-        self._id = []
-        self._flux = []
-        self._flux_error = []
-        self._flux_unit = []
-        self._flux_bib = []
-        #The filter argument forces the catalog to be in a single filter only
-        self._filter = filter
-
-    def _mag2flux(self, mag, offset=1.0):
-        '''
-        Converts a magnitude to a linear flux.
-        '''
-        return offset * 10**(-0.4*mag)
-
-    def _flux2mag(self, flux, offset = 0.0):
-        '''
-        Converts a linear flux to magnitude.
-        '''
-        return -2.5*np.log10(flux) + offset
-
-    def add_objects(self, id, flux, unit, flux_error = None, bibcode = None):
-        '''
-        Add objects to the catalog.
-
-        Parameters:
-            id : string, list or array
-                The identifications of the objects.
-            flux : float or array
-                The fluxes of the objects.
-            flux_error : float or array
-                The error of the flux.
-            unit : float or array
-                The unit of the fluxes.
-        '''
-        id = to_list(id)
-        flux = to_list(flux)
-        flux_error = to_list(flux_error)
-        unit = to_list(unit)
-        bibcode = to_list(bibcode)
-
-        if len(id) != len(flux):
-            raise ValueError('The id flux variables must have the same dimentions')
-
-        #check if the user is trying to add an existent object. If yes, skip it
-        for i in range(len(id)):
-            if id[i] not in set(self._id):
-                id2 = ''
-                if id[i] is not None:
-                    id2 = id[i]
-                else:
-                    id2 = 'uid' + str(self._uid_n)
-                    self._uid_n += 1
-                self._id.append(id2)
-                self._flux.append(float(flux[i]))
-                self._flux_error.append(float(flux_error[i]))
-                self._unit.append(unit[i])
-                self._flux_bib.append(bibcode[i])
-
-    def _flux_and_id_from_table(self, table, id_key, flux_key, unit_key,
-                                error_key=None, bib_key=None):
-        '''
-        Add objects from a ~astropy.table~.
-
-        Parameters:
-            table : ~astropy.table.Table~
-                The table with the data.
-            id_key : string
-                The name of the column that contains the ID of the objects.
-            flux_key : sting
-                The name of the column that contains the flux of the objects.
-            unit_key : string
-                The name of the column that contains the flux unit of the object.
-            error_key : string (optional)
-                The name of the column that contains the flux error of the object.
-            bib_key : string (optional)
-                The name of the column that contains the bibcode of the measure.
-        '''
-        id = []
-        flux = []
-        flux_err = []
-        unit = []
-        bib = []
-        #TODO: continuar aqui
-
-
-    def from_simbad(self, center, radius):
-        '''
-        Add objects from an ~astroquery.simbad~ query.
-        '''
-        from astroquery.simbad import Simbad
-
-        s = Simbad()
-        s.add_votable_fields('fluxdata(' + str(self._filter) + ')')
-
-        self._flux_and_id_from_simbad_table(s.query_region(center, radius))
-
-    def generate_bibcode_list(self, fname=None):
-        '''
-        Generates a bibcode list of the references and possible write it to a file.
-        '''
-        biblist = set(self._flux_bib) - set([None, '', ' ', '-', '--', '---'])
-        #TODO: Continuar aqui
-
-    def compare_object(self, counts, refs_id, refs_counts,
-                       counts_error=None, ref_counts_error=None):
-        '''
-        Compare a object with a reference to get the diferencial photometry.
-        '''
-        
