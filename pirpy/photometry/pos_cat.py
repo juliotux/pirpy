@@ -30,7 +30,7 @@ class PositionCatalog(object):
 
         self._args = list(kwargs.keys())
         if 'table' in self._args:
-            self._coords_and_id_from_simbad_table(kwargs['table'])
+            self._coords_and_id_from_table(kwargs['table'])
 
         self._kdtree = None
 
@@ -66,24 +66,28 @@ class PositionCatalog(object):
             raise ValueError('The id, ra and dec variables must have the same dimentions')
 
         #check if the user is trying to add an existent object.
-        for i in range(len(id)):
-            if id[i] not in set(self._id):
+        temp_set = set(self._id)
+        for i,r,d in zip(id,ra,dec):
+            if i not in temp_set:
                 id2 = ''
-                if id[i] is not None:
-                    id2 = id[i]
+                if i is not None:
+                    id2 = i
                 else:
-                    id2 = 'uid' + str(self._uid_n)
+                    id2 = "uid%i" % self._uid_n
                     self._uid_n += 1
                 self._id.append(id2)
-                self._ra.append(float(ra[i]))
-                self._dec.append(float(dec[i]))
+                self._ra.append(float(r))
+                self._dec.append(float(d))
                 log.debug("Added the object %s: %f,%f to the position catalog"
-                          % (id2, float(ra[i]), float(dec[i])))
+                          % (id2, float(r), float(d)))
+                temp_set = temp_set | set([id])
             else:
                 if not pass_if_exists:
                     raise ValueError("The object %s is already in this position catalog." % (id[i]))
+                else:
+                    log.warn("The object %s is already in this position catalog." % i)
 
-        self._kdtree = cKDTree(np.dstack([self._ra, self._dec])[0])
+        self._kdtree = cKDTree(zip(self._ra, self._dec))
 
     def _try_float(self, value):
         '''
