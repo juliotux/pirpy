@@ -20,6 +20,7 @@ class PositionCatalog(object):
     '''
     High level object to handle position catalogs to use in photometry.
     '''
+    #TODO: planning a `resolve_from_simbad` to resolve the name of uids from Simbad.
     def __init__(self,**kwargs):
         self._ra = []
         self._dec = []

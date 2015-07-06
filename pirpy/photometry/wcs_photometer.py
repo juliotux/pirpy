@@ -144,16 +144,19 @@ class WCSPhotometer(object):
             from . import sep_photometry as phot
 
         for i in self._file_queue:
-            log.info("Meassuring photometry from %s file." % i)
-            wcs, data, jd = self._load_image(i)
-            bkg, rms = phot.get_background(data, bkg_method, **kwargs)
-            x, y = phot.detect_sources(data, phot.get_threshold(bkg, rms, snr), **kwargs)
-            log.info("%i detected sources." % len(x))
-            flux, fluxerr, flag = phot.aperture_photometry(data, x, y,
-                                                           r, r_in, r_out,
-                                                           elipse=False,
-                                                           **kwargs)
-            ra, dec = self._get_radec(x, y, wcs)
-            id = self._get_id(ra, dec, add_new=add_uid)
-            self._objects.add_results(jd, id, flux, fluxerr, ra, dec)
+            log.debug("Meassuring photometry from %s file." % i)
+            try:
+                wcs, data, jd = self._load_image(i)
+                bkg, rms = phot.get_background(data, bkg_method, **kwargs)
+                x, y = phot.detect_sources(data, phot.get_threshold(bkg, rms, snr), **kwargs)
+                log.debug("%i detected sources." % len(x))
+                flux, fluxerr, flag = phot.aperture_photometry(data, x, y,
+                                                               r, r_in, r_out,
+                                                               elipse=False,
+                                                               **kwargs)
+                ra, dec = self._get_radec(x, y, wcs)
+                id = self._get_id(ra, dec, add_new=add_uid)
+                self._objects.add_results(jd, id, flux, fluxerr, ra, dec)
+            except:
+                pass
 

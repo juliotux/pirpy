@@ -1,8 +1,8 @@
 '''
-Wrappers the basic photometry functions from SEP (Source Extraction and Photometry)
+Wrappers the basic photometry functions from Photutils astropy affiliated package
 to easy use with the photometry package.
 
-More informations about the package: https://github.com/kbarbary/sep
+More informations about the package: https://github.com/astropy/photutils
 '''
 
 from astropy.stats import sigma_clipped_stats
@@ -11,9 +11,9 @@ import numpy as np
 __all__ = ['get_threshold', 'get_beckground', 'detect_sources', 'aperture_photometry']
 
 try:
-    import sep
+    import photutils as pu
 except:
-    raise ImportError('The SEP package is not installed. Please install it.')
+    raise ImportError('The Photutils package is not installed. Please install it.')
 
 def _extract_xy(positions):
     '''
@@ -47,22 +47,6 @@ def _extract_abtheta(abtheta):
         theta[i] = abtheta[i][2]
 
     return a, b, theta
-
-def _fix_data(data):
-    '''
-    Fix the data matrix to a format that can be read from SEP.
-    '''
-    try:
-        data = np.array(data)
-    except:
-        raise ValueError('There is a problem with your data. Please check it.')
-
-    if data.dtype.kind is 'i':
-        return data.astype('int32')
-    elif data.dtype.kind is 'f':
-        return data.astype('float64')
-    else:
-        raise ValueError('Just numerical arrays can be used in this function.')
 
 
 def get_threshold(background, rms, snr):
@@ -109,13 +93,8 @@ def get_background(data, bkg_method='median', *args, **kwargs):
     bkg = rms = None
 
     if bkg_method == 'default':
-        try:
-            back = sep.Background(data, **kwargs)
-        except:
-            data = _fix_data(data)
-            back = sep.Background(data, **kwargs)
-        bkg = back.back()
-        rms = back.globalrms
+        #TODO: implement
+        dummy = 1
     elif bkg_method == 'median':
         mean, bkg, rms = sigma_clipped_stats(data)
     else:
@@ -142,13 +121,7 @@ def detect_sources(data, threshold, elipse = False, *args, **kwargs):
         a, b, theta : ~numpy.ndarray~
             The parameters of the detected elipses.
     '''
-    data = _fix_data(data)
-    objs = sep.extract(data, threshold, **kwargs)
-
-    if elipse:
-        return objs['x'], objs['y'], objs['a'], objs['b'], objs['theta']
-    else:
-        return objs['x'], objs['y']
+    #TODO: implement
 
 def aperture_photometry(data, x, y, r, r_in, r_out,
                         elipse = False, abtheta = None,
@@ -177,13 +150,4 @@ def aperture_photometry(data, x, y, r, r_in, r_out,
         flux, fluxerr, flags : ~numpy.ndarray~
             The sum of the aperture, with annulus sky subtraction, and its error.
     '''
-    data = _fix_data(data)
-
-    if elipse:
-        if abtheta is None:
-            raise ValueError("You must give the 'abtheta' argument if you want elipse photometry.")
-        a, b, theta = _extract_abtheta(abtheta)
-        return sep.sum_ellipse(data, x, y, a, b, theta, r, bkgann=(r_in, r_out), **kwargs)
-    else:
-        return sep.sum_circle(data, x, y, r, bkgann=(r_in, r_out), **kwargs)
-
+    #TODO: implement
