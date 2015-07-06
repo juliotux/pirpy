@@ -1,1 +1,1 @@
-from . import imreducer
+from .imreducer import ImReduce

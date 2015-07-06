@@ -1,1 +1,1 @@
-from . import wcscalib
+from .wcscalib import *
