@@ -84,20 +84,17 @@ class PhotObject(object):
             log.error('The filter of the meassurement is different from the filter of the object.')
 
         if jd in set(self._jds):
-            log.error('There is already a measure for this time.')
-
-        self._jds.append(jd)
-        self._sums.append(sum)
-        self._sums_error.append(error)
-
-        log.debug('Added jd=%f   sum=%f   error=%f to object %s' % (jd, sum, error, self._id) )
+            log.warn('There is already a measure for this time.')
+        else:
+            self._jds.append(jd)
+            self._sums.append(sum)
+            self._sums_error.append(error)
+            log.debug('Added jd=%f   sum=%f   error=%f to object %s' % (jd, sum, error, self._id) )
 
     def relative_to(self, photobject):
         '''
         Make the relation of the photometry of this object to other.
         '''
-        #TODO: Make the algorithm faster
-        #FIXME: There is an error in the results
         fjd = []
         fphot = []
         ferror = []
@@ -111,7 +108,8 @@ class PhotObject(object):
                 fphot.append(pht)
                 ferror.append(err)
 
-        return fjd, fphot, ferror
+        indx = np.argsort(fjd)
+        return fjd[indx], fphot[indx], ferror[indx]
 
 
 class PhotColection(object):
@@ -128,27 +126,33 @@ class PhotColection(object):
 
     @property
     def objects(self):
-        result = {'ID':[], 'RA':[], 'DEC':[]}
+        id = []
+        ra = []
+        dec = []
+
         for i in self._list.keys():
-            result['ID'].append(i)
-            result['RA'].append(self._list[i].ra)
-            result['DEC'].append(self._list[i].dec)
-        return Table(result)
+            id.append(i)
+            ra.append(self._list[i].ra)
+            dec.append(self._list[i].dec)
+        return Table([id, ra, dec], names=('ID', 'RA', 'DEC'))
 
     @property
     def get_photometry(self):
-        result = {'ID':[], 'JD':[], 'FLUX':[], 'FLUX_ERROR':[]}
+        id = []
+        jd = []
+        flux = []
+        error = []
 
         for i in self._list.keys():
             for j, f, e in zip(self._list[i].jd,
                                self._list[i].sums,
                                self._list[i].sums_error):
-                result['ID'].append(i)
-                result['JD'].append(j)
-                result['FLUX'].append(f)
-                result['FLUX_ERROR'].append(e)
+                id.append(i)
+                jd.append(j)
+                flux.append(f)
+                error.append(e)
 
-        return Table(result)
+        return Table([id, jd, flux, error], names=('ID','JD','FLUX','FLUX_ERROR'))
 
     def get_object(self, id):
         '''
@@ -158,7 +162,7 @@ class PhotColection(object):
 
     def add_objects(self, id, ra=None, dec=None):
         '''
-        Adds a object to the list.
+        Adds an object to the list.
         '''
         if id in self._list.keys():
             raise ValueError('The object %s is already in the colection' % id)
@@ -190,3 +194,32 @@ class PhotColection(object):
         Compare the photometry of 2 objects.
         '''
         return self._list[id1].relative_to(self._list[id2])
+
+    def load_from_table(self, table, id_key='ID', jd_key='JD', flux_key='FLUX', error_key='FLUX_ERROR'):
+        '''
+        Loads the photometry from a ~astropy.table~
+        '''
+        if not isinstance(table, Table):
+            from astropy.io import ascii
+            try:
+                table = ascii.read(table)
+            except:
+                raise ValueError("Problem loading the table. Please give an astropy.table.Table instance or a filename.")
+
+        for i in table:
+            try:
+                id = i[id_key]
+                jd = i[jd_key]
+                fl = i[flux_key]
+                er = i[error_key]
+            except KeyError:
+                raise ValueError("Problems loading tables: wrong keys: id_key=%s jd_key=%s flux_key=%s error_key=%s" %
+                                 (id_key, jd_key, flux_key, error_key))
+
+    def write_to(self, fname):
+        '''
+        Save the results to a file.
+        '''
+        from astropy.io import ascii
+        result = self.get_photometry
+        ascii.write(result, fname)
