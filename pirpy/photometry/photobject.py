@@ -2,6 +2,8 @@
 Implements the photometry storage for a single object.
 '''
 
+#NOTE: Possible transport the PositionCatalog method to PhotColection
+
 from __future__ import division
 
 from astropy.table import Table
@@ -38,6 +40,12 @@ class PhotObject(object):
     @property
     def dec(self):
         return self._dec
+
+    def set_ra(self, ra):
+        self._ra = ra
+
+    def set_dec(self, dec):
+        self._dec = dec
 
     @property
     def filter(self):
@@ -84,7 +92,7 @@ class PhotObject(object):
             log.error('The filter of the meassurement is different from the filter of the object.')
 
         if jd in set(self._jds):
-            log.warn('There is already a measure for this time.')
+            log.warn('There is already a measure for this time. id=%s, jd=%f' % (self._id, jd))
         else:
             self._jds.append(jd)
             self._sums.append(sum)
@@ -160,12 +168,17 @@ class PhotColection(object):
         '''
         return self._list[id]
 
-    def add_objects(self, id, ra=None, dec=None):
+    def add_objects(self, id, ra=None, dec=None, update_coords=False):
         '''
         Adds an object to the list.
         '''
         if id in self._list.keys():
-            raise ValueError('The object %s is already in the colection' % id)
+            if (self._list[id].ra is None or self._list[id].dec is None) and ((ra is not None and dec is not None) or update_coords):
+                log.info("Object %s with empty coordinates will be updated to: ra=%f, dec=%f" % (id, ra, dec))
+                self._list[id].set_ra(ra)
+                self._list[id].set_dec(dec)
+            else:
+                log.error('The object %s is already in the colection' % id)
         else:
             self._list[id] = PhotObject(id, ra, dec, self._filter)
             log.debug('Added the object %s to PhotColection' % id)
@@ -195,6 +208,27 @@ class PhotColection(object):
         '''
         return self._list[id1].relative_to(self._list[id2])
 
+    def load_objects_from_table(self, table, id_key='ID', ra_key='RA', dec_key='DEC'):
+        '''
+        Loads the object list from a table.
+        '''
+        if not isinstance(table, Table):
+            from astropy.io import ascii
+            try:
+                table = ascii.read(table)
+            except:
+                raise ValueError("Problem loading the table. Please give an astropy.table.Table instance or a filename.")
+
+        for i in table:
+            try:
+                id = i[id_key]
+                ra = i[ra_key]
+                dec = i[dec_key]
+            except KeyError:
+                raise ValueError("Problems loading tables: wrong keys: id_key=%s jd_key=%s flux_key=%s error_key=%s" %
+                                 (id_key, jd_key, flux_key, error_key))
+            self.add_objects(id, ra, dec)
+
     def load_from_table(self, table, id_key='ID', jd_key='JD', flux_key='FLUX', error_key='FLUX_ERROR'):
         '''
         Loads the photometry from a ~astropy.table~
@@ -215,11 +249,14 @@ class PhotColection(object):
             except KeyError:
                 raise ValueError("Problems loading tables: wrong keys: id_key=%s jd_key=%s flux_key=%s error_key=%s" %
                                  (id_key, jd_key, flux_key, error_key))
+            self.add_results(jd, id, fl, er, add_if_not_exists=True)
 
-    def write_to(self, fname):
+    def write_to(self, fname_photometry, fname_objects=None):
         '''
         Save the results to a file.
         '''
         from astropy.io import ascii
-        result = self.get_photometry
-        ascii.write(result, fname)
+        ascii.write(self.get_photometry, fname_photometry)
+
+        if fname_objects is not None:
+            ascii.write(self.objects, fname_objects)
