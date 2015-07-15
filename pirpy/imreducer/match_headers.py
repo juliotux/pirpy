@@ -1,3 +1,5 @@
+from ..log import log
+
 #The list of the header keys to check if the instrument configure is the same in 2 images
 opd_checkkeys = ['INSTRUME','PREAMP','HBIN','VBIN','EXPTIME','FILTER',
                  'GAIN','VSHIFT','IMGRECT','SUBRECT']
@@ -19,8 +21,8 @@ def match_header_fields(header1, header2, keys):
     '''
     for i in keys:
         if header1[i] != header2[i]:
-            print('Key '+ i + ' don\'t match: ' +
-                  str(header1[i]) + '     ' + str(header2[i]))
+            log.error('Key '+ i + ' don\'t match: ' +
+                      str(header1[i]) + '     ' + str(header2[i]))
             return False
     return True
 

@@ -11,7 +11,8 @@ import numpy as np
 __all__ = ['get_threshold', 'get_beckground', 'detect_sources', 'aperture_photometry']
 
 try:
-    import photutils as pu
+    from photutils.background import Background
+    import photutils
 except:
     raise ImportError('The Photutils package is not installed. Please install it.')
 

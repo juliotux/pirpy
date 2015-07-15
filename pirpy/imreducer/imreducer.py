@@ -14,7 +14,7 @@ from os import path
 from ..math import *
 from ..io.mkdir_p import mkdir_p
 from ..io.io_tool import ccd_read
-from lacosmic import lacosmic_subtract
+from .lacosmic import lacosmic_subtract
 
 class ImReduce():
     '''

@@ -3,6 +3,7 @@ Handle astroscrappy functions for multiple files.
 '''
 
 from astroscrappy import detect_cosmics
+
 from ..mp import mult_ret
 from ..math.ccd_type import verify_ccdlist
 
