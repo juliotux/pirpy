@@ -7,7 +7,10 @@ from __future__ import division
 from astropy.table import Table
 from astropy.io import ascii
 from astropy import units as u
+from astropy.coordinates import SkyCoord
+from astropy.coordinates.angles import Angle
 from scipy.spatial import cKDTree
+import numpy as np
 
 from ..math.list_tools import to_list, match_lengths
 
@@ -83,7 +86,7 @@ class PhotObject(object):
     def cat_mag(self):
         return self._cat_mag
 
-    @proprty
+    @property
     def cat_err(self):
         return self._cat_err
 
@@ -199,18 +202,63 @@ class PhotColection(object):
 
         return id, ra, dec
 
+    def _try_float(self, value):
+        '''
+        Tries to convert a srting to a float. If not, return false.
+        '''
+        try:
+            float(value)
+            return True
+        except:
+            return False
+
+    def _coords_from_table(self, table, ra_key='RA', dec_key='DEC', unit=('hourangle','degree')):
+        ra = [None]*len(table)
+        dec = [None]*len(table)
+
+        for i in range(len(table)):
+            try:
+                r = table[i][ra_key]
+                d = table[i][dec_key]
+            except KeyError:
+                raise ValueError("Problems loading tables: wrong keys: ra_key=%s dec_key=%s" %
+                                 (ra_key, dec_key))
+            if not self._try_float(r) and not self._try_float(d):
+                c = SkyCoord(r, d, frame='icrs', unit=unit)
+                ra[i] = c.ra.degree
+                dec[i] = c.dec.degree
+
+        return(ra, dec)
+
+    def _id_from_table(self, table, id_key='ID'):
+        try:
+            id = table[id_key].data.data
+        except KeyError:
+            raise ValueError("Problems loading tables: wrong keys: id_key=%s" % id_key)
+        return id
+
+    def _mags_from_table(self, table, flux_key='FLUX', flux_error_key='FLUX_ERROR', flux_unit_key='FLUX_UNIT'):
+        try:
+            flux = table[flux_key].data.data
+            erro = table[flux_error_key].data.data
+            unit = table[flux_unit_key].data.data
+        except KeyError:
+            raise ValueError("Problems loading tables: wrong keys: flux_key=%s flux_error_key=%s flux_unit_key=%s" %
+                             (flux_key, flux_error_key, flux_unit_key))
+        return flux, erro, unit
+
     def _update_kdtree(self):
-        self._kd_ids, ra, dec = _id_ra_dec()
+        self._kd_ids, ra, dec = self._id_ra_dec()
         self._kdtree = cKDTree(zip(ra, dec))
 
     def _query_nn(self, ra, dec):
         '''
         Query the nearest neighbors of a point with coordinates ra and dec.
         '''
+        if self._kdtree is None:
+            return(0, Angle(360.0, unit='degree'))
         dist, index = self._kdtree.query([ra, dec])
-        log.debug("The nearest neighbor of the %f,%f point is the %i: %f, %f, with a distance of %f"
-                  % (ra, dec, index, self._ra[index], self._dec[index], dist))
-        return(index, dist)
+        return(index, Angle(dist, unit='degree'))
 
     def _new_id(self):
         id = "uid%i" % self._uid_n
@@ -254,7 +302,7 @@ class PhotColection(object):
         self._list[new_name].set_id(new_name)
 
     def add_object(self, id, ra=None, dec=None, mag=None, mag_err=None, mag_unit=None,
-                   update_if_exists = True, update_names=True, sep_limit='00d00m01s'):
+                   update_if_exists=True, update_names=True, sep_limit=1*u.arcsec):
         '''
         Adds an object to the list.
         '''
@@ -269,8 +317,8 @@ class PhotColection(object):
         if id in self._list.keys():
             exists = True
         elif ra is not None and dec is not None:
-            index, dist = self._query_nn([ra, dec])
-            if dist <= 1.0/3600.0:
+            index, dist = self._query_nn(ra, dec)
+            if dist <= Angle(sep_limit):
                 exists = True
                 id2 = self._kd_ids[index]
 
@@ -284,9 +332,7 @@ class PhotColection(object):
                 else:
                     id = id2
 
-                if (ra is not None and dec is not None) and
-                   ((self._list[id].ra is None or self._list[id].dec is None) or
-                    update_if_exists):
+                if (ra is not None and dec is not None) and ((self._list[id].ra is None or self._list[id].dec is None) or update_if_exists):
                     log.info("Object %s will be updated to the coordinates: ra=%f, dec=%f" % (id, ra, dec))
                     self._list[id].set_ra(ra)
                     self._list[id].set_dec(dec)
@@ -331,8 +377,8 @@ class PhotColection(object):
 
     def load_objects_from_table(self, table, id_key='ID', ra_key='RA', dec_key='DEC',
                                 flux_key=None, flux_error_key=None, flux_unit_key=None, flux_bib_key=None,
-                                update_if_exists = True, update_names=True,
-                                sep_limit='00d00m01s'):
+                                update_if_exists=True, update_names=True,
+                                sep_limit=1*u.arcsec):
         '''
         Loads the object list from a table.
         '''
@@ -342,33 +388,23 @@ class PhotColection(object):
             except:
                 raise ValueError("Problem loading the table. Please give an astropy Table or a filename.")
 
-        for i in table:
-            try:
-                id = i[id_key]
-                ra = i[ra_key]
-                dec = i[dec_key]
-            except KeyError:
-                raise ValueError("Problems loading tables: wrong keys: id_key=%s ra_key=%s dec_key=%s" %
-                                 (id_key, ra_key, dec_key))
+        id = self._id_from_table(table, id_key)
+        ra, dec = self._coords_from_table(table, ra_key, dec_key)
 
-            if (flux_key is not None) and (flux_error_key is not None) and (flux_unit_key is not None):
+        if (flux_key is not None) and (flux_error_key is not None) and (flux_unit_key is not None):
+            mag, err, unit = self._mags_from_table(table, flux_key, flux_error_key, flux_unit_key)
+            for i,r,d,m,e,u in zip(id, ra, dec, mag, err, unit):
+                self.add_object(i, r, d, m, e, u, update_if_exists=update_if_exists, update_names=update_names, sep_limit=sep_limit)
+            if flux_bib_key is not None:
                 try:
-                    mag = i[flux_key]
-                    err = i[flux_error_key]
-                    unit = i[flux_unit_key]
-                except KeyError:
-                    raise ValueError("Problems loading tables: wrong keys: flux_key=%s flux_error_key=%s flux_bib_key=%s flux_unit_key=%s" %
-                                     (flux_key, flux_error_key, flux_unit_key))
-                self.add_object(id, ra, dec, mag, err, unit)
-                if flux_bib_key is not None:
-                    try:
-                        self._mag_bib_list.add(i[flux_bib_key])
-                    except:
-                        pass
-            else:
-                self.add_object(id, ra, dec)
+                    self._mag_bib_list.add(i[flux_bib_key])
+                except:
+                    pass
+        else:
+            for i,r,d in zip(id, ra, dec):
+                self.add_object(i, r, d, update_if_exists=update_if_exists, update_names=update_names, sep_limit=sep_limit)
 
-    def load_objects_from_simbad(self, center, radius, update_if_exists=True, update_names=True, sep_limit='00d00m01s'):
+    def load_objects_from_simbad(self, center, radius, update_if_exists=True, update_names=True, sep_limit=1*u.arcsec):
         '''
         Loads the object list from a Simbad query, centered in `center` and
         within a `radius`. It can update existent objects, including names.
@@ -380,14 +416,13 @@ class PhotColection(object):
         s = Simbad()
 
         if self._filter is not None:
-            s.add_votable_field('fluxdata(%s)' % self._filter)
+            s.add_votable_fields('fluxdata(%s)' % self._filter)
 
         query = s.query_region(center, radius)
 
-        self.load_objects_from_table(query, **get_simbad_config(self._filter),
-                                     update_if_exists=update_if_exists,
+        self.load_objects_from_table(query, update_if_exists=update_if_exists,
                                      update_names=update_names,
-                                     sep_limit=sep_limit)
+                                     sep_limit=sep_limit, **get_simbad_config(self._filter))
 
     def load_photometry_from_table(self, table, id_key='ID', jd_key='JD', flux_key='FLUX', error_key='FLUX_ERROR'):
         '''
@@ -421,16 +456,9 @@ class PhotColection(object):
         '''
         Save the results to a file.
         '''
-        ascii.write(self.get_photometry, fname)    def query_nn(self, ra, dec):
-        '''
-        Query the nearest neighbors of a point with coordinates ra and dec.
-        '''
-        dist, index = self._kdtree.query([ra, dec])
-        log.debug("The nearest neighbor of the %f,%f point is the %i: %f, %f, with a distance of %f"
-                  % (ra, dec, index, self._ra[index], self._dec[index], dist))
-        return(index, dist)
+        ascii.write(self.get_photometry, fname)
 
-    def match_point(self, ra, dec, r_lim='00d00m01s', add_new=False):
+    def match_point(self, ra, dec, r_lim=1*u.arcsec, add_new=False):
         '''
         Match a point with coordinates ra and dec in your catalog. This point
         must be inside the r_lim angle. Otherwise, returns None, or add a new uid
@@ -453,15 +481,16 @@ class PhotColection(object):
                 the point.
         '''
         if self._kdtree is None:
-            self.add_objects(None, ra, dec)
+            self.add_object(None, ra, dec)
 
         index, dist = self._query_nn(ra, dec)
 
-        if dist*u.degree <= r_lim:
+        if dist <= Angle(r_lim):
             return self._kd_ids[index]
         else:
             if add_new:
-                self.add_objects(None, ra, dec)
-                return self._kd_ids[-1]
+                self.add_object(None, ra, dec)
+                index, dist = self._query_nn(ra, dec)
+                return self._kd_ids[index]
             else:
                 return None

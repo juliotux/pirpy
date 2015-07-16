@@ -53,8 +53,6 @@ class WCSPhotometer(object):
         self._filter = filter
         self._objects = PhotColection(filter)
 
-        self.position_catalog = PositionCatalog()
-
         self._file_queue = set([])
 
         if log_file is not None:
@@ -117,7 +115,7 @@ class WCSPhotometer(object):
 
         ids = [None]*len(ra)
         for i in range(len(ra)):
-            ids[i] = self.position_catalog.match_point(ra[i], dec[i], add_new=add_new)
+            ids[i] = self._objects.match_point(ra[i], dec[i], add_new=add_new)
 
         return ids
 
@@ -158,5 +156,5 @@ class WCSPhotometer(object):
                 id = self._get_id(ra, dec, add_new=add_uid)
                 self._objects.add_results(jd, id, flux, fluxerr, ra, dec)
             except:
-                pass
+                log.error("Image %s failed." % i)
 
