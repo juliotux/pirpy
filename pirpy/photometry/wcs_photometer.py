@@ -9,7 +9,6 @@ from astropy.coordinates import SkyCoord
 
 from .photobject import PhotObject, PhotColection
 from .allowed_algorithms import allowed, todo
-from .pos_cat import PositionCatalog
 from ..math.list_tools import to_list, match_lengths
 
 from ..log import log

@@ -9,10 +9,12 @@ from astropy.io import ascii
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.coordinates.angles import Angle
+from astropy.stats import median_absolute_deviation as mad
 from scipy.spatial import cKDTree
 import numpy as np
 
 from ..math.list_tools import to_list, match_lengths
+from ..math.mag_tools import *
 
 from ..log import log
 
@@ -151,7 +153,7 @@ class PhotObject(object):
             self._sums_error.append(error)
             log.debug('Added jd=%f   sum=%f   error=%f to object %s' % (jd, sum, error, self._id) )
 
-    def relative_to(self, photobject):
+    def relative_light_curve(self, photobject):
         '''
         Make the relation of the photometry of this object to other.
         '''
@@ -159,8 +161,10 @@ class PhotObject(object):
         fphot = []
         ferror = []
 
+        jd2set = set(photobject.jd)
+
         for jd1, pht1, err1 in zip(self._jds, self._sums, self._sums_error):
-            if jd1 in set(photobject.jd):
+            if jd1 in jd2set:
                 pht2, err2 = photobject.get_sum(jd1)
                 pht = pht1/pht2
                 err = pht*((err1/pht1) + (err2/pht2))
@@ -168,8 +172,40 @@ class PhotObject(object):
                 fphot.append(pht)
                 ferror.append(err)
 
-        indx = np.argsort(fjd)
-        return fjd[indx], fphot[indx], ferror[indx]
+        return zip(*sorted(zip(fjd, fphot, ferror)))
+
+    def relative_magnitude(self, photobject):
+        '''
+        Gets an array with the calculated magnitudes relative to a standart object.
+        '''
+
+        if photobject.cat_mag is None:
+            raise ValueError('The standart object doesn\'t have a catalog magnitude.')
+
+        #TODO: implement errors
+        mags = []
+
+        jd2set = set(photobject.jd)
+
+        for jd1, pht1 in zip(self._jds, self._sums):
+            if jd1 in jd2set:
+                corr_factor = photobject.cat_mag - flux2mag(photobject.get_sum(jd1)[0])
+                mags.append(flux2mag(pht1) + corr_factor)
+
+        return mags
+
+    def relative_mean_magnitude(self, photobject, mean_method='median'):
+        '''
+        Gets the mean magnitude based in the comparision with another photobject.
+        '''
+
+        mags = self.relative_magnitude(photobject)
+
+        if mean_method == 'median':
+            #TODO: replace the nanstd by a nanmad when implement it
+            return np.nanmedian(mags), np.nanstd(mags)
+        if mean_method == 'mean':
+            return np.nanmean(mags), np.nanstd(mags)
 
 
 class PhotColection(object):
@@ -373,7 +409,24 @@ class PhotColection(object):
         '''
         Compare the photometry of 2 objects.
         '''
-        return self._list[id1].relative_to(self._list[id2])
+        return self._list[id1].relative_light_curve(self._list[id2])
+
+    def median_magnitude(self, id):
+        '''
+        Calculate the median magnitude of an object, relative to all the others.
+        '''
+        obj1 = self._list[id]
+        mags = []
+
+        for i in self._list.keys():
+            if i != id:
+                try:
+                    mags.append(obj1.relative_mean_magnitude(self._list[i])[0])
+                except:
+                    pass
+
+        #TODO: replace the nanstd by a nanmad when implement it
+        return np.nanmedian(mags), np.nanstd(mags)
 
     def load_objects_from_table(self, table, id_key='ID', ra_key='RA', dec_key='DEC',
                                 flux_key=None, flux_error_key=None, flux_unit_key=None, flux_bib_key=None,
