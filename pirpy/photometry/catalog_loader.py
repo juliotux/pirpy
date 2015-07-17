@@ -2,6 +2,8 @@ from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
 from astroquery.simbad.core import SimbadObjectIDsResult
 
+from ..mp import mult_ret
+
 from ..log import log
 
 __all__ = ['CatalogLoader', 'order_names']
@@ -39,7 +41,7 @@ class Catalog(object):
         raise Exception('Reimplement it, empty catalog.')
 
     def get_keys(self, filter=None, **kwargs):
-        return self._keys(filter)
+        return self._keys(filter, **kwargs)
 
     def query(self, center, radius, filter=None, **kwargs):
         return self._load(center, radius, filter)
@@ -54,12 +56,18 @@ class QueryData(object):
 
 ################################################################################
 
+def simbad_query_ids(name):
+    return Simbad.query_objectids(name)
+
 class Simbad_Catalog(Catalog):
     def __init__(self):
         Catalog.__init__(self, 'Simbad', description='Simbad online database.')
         self._simbad = None
 
     def _parse_names_with_priority(self, name, names_list, priority):
+        if names_list is None:
+            return name
+
         for i in priority:
             for j in names_list:
                 if j['ID'][0:len(i)] == i:
@@ -73,12 +81,7 @@ class Simbad_Catalog(Catalog):
 
         names_order = kwargs.pop('names_priority', None)
         if names_order is not None:
-            names_list = [None]*len(table)
-
-            for i in range(len(names_list)):
-                names_list[i] = Simbad.query_objectids_async(table[i]['MAIN_ID'])
-
-            names_list = [self._simbad._parse_result(i, SimbadObjectIDsResult) for i in names_list]
+            names_list = mult_ret(simbad_query_ids, table['MAIN_ID'].data.tolist(), nprocess=10)
 
             for i in range(len(table)):
                 table[i]['MAIN_ID'] = self._parse_names_with_priority(table[i]['MAIN_ID'], names_list[i], names_order)
@@ -141,7 +144,7 @@ class CatalogLoader(object):
         else:
             raise ValueError('Catalog named %s not found. Use the list_catalogs() method tu see the available catalogs.' % catalog_name)
 
-        return QueryData(cat.query(center, radius, filter), cat.get_keys())
+        return QueryData(cat.query(center, radius, filter, **kwargs), cat.get_keys(filter))
 
     def list_catalogs(self):
         '''

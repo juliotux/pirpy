@@ -219,6 +219,18 @@ class PhotColection(object):
     def ids(self):
         return self._list.keys()
 
+    def _mags(self):
+        mag = []
+        err = []
+        unit = []
+
+        for i in self._list.keys():
+            mag.append(self._list[i].cat_mag)
+            err.append(self._list[i].cat_err)
+            unit.append(self._list[i].cat_unit)
+
+        return mag, err, unit
+
     def _id_ra_dec(self):
         id = []
         ra = []
@@ -422,7 +434,7 @@ class PhotColection(object):
         return np.nanmedian(mags), np.nanstd(mags)
 
     def load_objects_from_table(self, table, id_key='ID', ra_key='RA', dec_key='DEC',
-                                flux_key=None, flux_error_key=None, flux_unit_key=None, flux_bib_key=None,
+                                flux_key='MAG', flux_error_key='MAG_ERR', flux_unit_key='MAG_UNIT', flux_bib_key=None,
                                 update_if_exists=True, update_names=True,
                                 sep_limit=1*u.arcsec):
         '''
@@ -481,10 +493,7 @@ class PhotColection(object):
         if self._catalog_loader is None:
             self._catalog_loader = CatalogLoader()
 
-        if filter is None:
-            filter = self._filter
-
-        result = self._catalog_loader.query_catalog(catalog_name, center, radius, filter, **kwargs)
+        result = self._catalog_loader.query_catalog(catalog_name, center, radius, filter=self._filter, **kwargs)
 
         self.load_objects_from_table(result.table, update_if_exists=update_if_exists, update_names=update_names, sep_limit=sep_limit, **result.keys)
 
@@ -497,11 +506,16 @@ class PhotColection(object):
 
         self._catalog_loader.list_catalogs()
 
-    def save_objects_catalog(self, fname):
+    def save_objects_catalog(self, fname, with_mags=True):
         '''
         Save the objects catalog to a file.
         '''
-        ascii.write(self.objects, fname_objects)
+        id, ra, dec = self._id_ra_dec()
+        if with_mags:
+            mag, err, unit = self._mags()
+            ascii.write(Table([id, ra, dec, mag, err, unit], names=('ID', 'RA', 'DEC', 'MAG', 'MAG_ERR', 'MAG_UNIT')), fname)
+        else:
+            ascii.write(Table([id, ra, dec], names=('ID', 'RA', 'DEC')), fname)
 
     def save_photometry(self, fname):
         '''

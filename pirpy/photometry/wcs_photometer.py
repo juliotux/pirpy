@@ -137,6 +137,7 @@ class WCSPhotometer(object):
         '''
         #TODO: now, don't handle the elipse photometry
         #TODO: Not handle error flags at this momment.
+        #TODO: implement a way to specify the position setting
         if self.algorithm == 'sextractor':
             from . import sep_photometry as phot
 
