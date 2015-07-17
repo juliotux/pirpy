@@ -15,22 +15,12 @@ import numpy as np
 
 from ..math.list_tools import to_list, match_lengths
 from ..math.mag_tools import *
+from .catalog_loader import CatalogLoader
+from .catalog_loader import order_names as default_order_names
 
 from ..log import log
 
 __all__ = ['PhotObject', 'PhotColection']
-
-def get_simbad_config(filter):
-    '''
-    Get the configuration names for the Simbad tables.
-    '''
-    return {'id_key':'MAIN_ID',
-            'ra_key':'RA',
-            'dec_key':'DEC',
-            'flux_key':'FLUX_'+filter,
-            'flux_error_key':'FLUX_ERROR_'+filter,
-            'flux_bib_key':'FLUX_BIBCODE_'+filter,
-            'flux_unit_key':'FLUX_UNIT_'+filter}
 
 class PhotObject(object):
     '''
@@ -212,6 +202,7 @@ class PhotColection(object):
     '''
     A colection to store a lot of photobjects.
     '''
+    #TODO: load_objects_from_catalog
     def __init__(self, filter=None):
         self._list = {}
         self._filter = filter
@@ -221,6 +212,8 @@ class PhotColection(object):
         self._mag_bib_list = set([])
 
         self._uid_n = 0
+
+        self._catalog_loader = None
 
     @property
     def ids(self):
@@ -457,29 +450,9 @@ class PhotColection(object):
             for i,r,d in zip(id, ra, dec):
                 self.add_object(i, r, d, update_if_exists=update_if_exists, update_names=update_names, sep_limit=sep_limit)
 
-    def load_objects_from_simbad(self, center, radius, update_if_exists=True, update_names=True, sep_limit=1*u.arcsec):
-        '''
-        Loads the object list from a Simbad query, centered in `center` and
-        within a `radius`. It can update existent objects, including names.
-
-        The source identification is did using the `sep_limit`.
-        '''
-        from astroquery.simbad import Simbad
-
-        s = Simbad()
-
-        if self._filter is not None:
-            s.add_votable_fields('fluxdata(%s)' % self._filter)
-
-        query = s.query_region(center, radius)
-
-        self.load_objects_from_table(query, update_if_exists=update_if_exists,
-                                     update_names=update_names,
-                                     sep_limit=sep_limit, **get_simbad_config(self._filter))
-
     def load_photometry_from_table(self, table, id_key='ID', jd_key='JD', flux_key='FLUX', error_key='FLUX_ERROR'):
         '''
-        Loads the photometry from a ~astropy.table~
+        Loads the photometry from a table.
         '''
         if not isinstance(table, Table):
             from astropy.io import ascii
@@ -498,6 +471,31 @@ class PhotColection(object):
                 raise ValueError("Problems loading tables: wrong keys: id_key=%s jd_key=%s flux_key=%s error_key=%s" %
                                  (id_key, jd_key, flux_key, error_key))
             self.add_results(jd, id, fl, er, add_if_not_exists=True)
+
+    def load_objects_from_catalog(self, catalog_name, center, radius, filter=None,
+                                  update_if_exists=True, update_names=True,
+                                  sep_limit=1*u.arcsec, **kwargs):
+        '''
+        Loads the object list from online catalogs.
+        '''
+        if self._catalog_loader is None:
+            self._catalog_loader = CatalogLoader()
+
+        if filter is None:
+            filter = self._filter
+
+        result = self._catalog_loader.query_catalog(catalog_name, center, radius, filter, **kwargs)
+
+        self.load_objects_from_table(result.table, update_if_exists=update_if_exists, update_names=update_names, sep_limit=sep_limit, **result.keys)
+
+    def list_online_catalogs(self):
+        '''
+        List the available catalogs.
+        '''
+        if self._catalog_loader is None:
+            self._catalog_loader = CatalogLoader()
+
+        self._catalog_loader.list_catalogs()
 
     def save_objects_catalog(self, fname):
         '''
