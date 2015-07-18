@@ -264,10 +264,14 @@ class PhotColection(object):
             except KeyError:
                 raise ValueError("Problems loading tables: wrong keys: ra_key=%s dec_key=%s" %
                                  (ra_key, dec_key))
+
             if not self._try_float(r) and not self._try_float(d):
                 c = SkyCoord(r, d, frame='icrs', unit=unit)
                 ra[i] = c.ra.degree
                 dec[i] = c.dec.degree
+            else:
+                ra[i] = float(r)
+                dec[i] = float(d)
 
         return(ra, dec)
 
@@ -449,7 +453,7 @@ class PhotColection(object):
         id = self._id_from_table(table, id_key)
         ra, dec = self._coords_from_table(table, ra_key, dec_key)
 
-        if (flux_key is not None) and (flux_error_key is not None) and (flux_unit_key is not None):
+        if self._filter is not None:
             mag, err, unit = self._mags_from_table(table, flux_key, flux_error_key, flux_unit_key)
             for i,r,d,m,e,u in zip(id, ra, dec, mag, err, unit):
                 self.add_object(i, r, d, m, e, u, update_if_exists=update_if_exists, update_names=update_names, sep_limit=sep_limit)

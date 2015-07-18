@@ -1,6 +1,7 @@
 from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
-from astroquery.simbad.core import SimbadObjectIDsResult
+from astropy.coordinates.angles import Angle
+from astropy.table import Column
 
 from ..mp import mult_ret
 
@@ -90,7 +91,6 @@ class Simbad_Catalog(Catalog):
 
     def _keys(self, filter=None):
         if filter is None:
-            log.warn("No filter specified, loading just astrometric data.")
             return {'id_key':'MAIN_ID',
                     'ra_key':'RA',
                     'dec_key':'DEC',}
@@ -127,13 +127,50 @@ class Simbad_Catalog(Catalog):
     def query(self, center, radius, filter=None, **kwargs):
         return self._load(center, radius, filter, names_priority=kwargs.pop('names_priority',order_names))
 
+class UCAC4_Catalog(Catalog):
+    def __init__(self):
+        Catalog.__init__(self, 'UCAC4', vizier_table='I/322A', vizier_query=True)
+        Vizier.ROW_LIMIT = -1
+
+    def _set_names(self, table, **kwargs):
+        return  ["UCAC4 %s" % i['UCAC4'] for i in table]
+
+    def _keys(self, filter=None):
+        if filter is None:
+            log.warn("No filter specified, loading just astrometric data.")
+            return {'id_key':'ID',
+                    'ra_key':'RAJ2000',
+                    'dec_key':'DEJ2000',}
+
+        if filter not in {'V','B','H','J','K','g','r','i'}:
+            raise ValueError("UCAC4 catalog only have the following filters: B V J H K g r i")
+
+        return {'id_key':'ID',
+                'ra_key':'RAJ2000',
+                'dec_key':'DEJ2000',
+                'flux_key':'%smag' % filter,
+                'flux_error_key':'e_%smag' % filter,
+                'flux_bib_key':'bib',
+                'flux_unit_key':'unit'}
+
+    def _load(self, center, radius, filter=None):
+        table = Vizier.query_region(center, radius=Angle(radius), catalog=self._table)[0]
+        names = self._set_names(table)
+
+        table.add_column(Column(data=names, name='ID'))
+        table.add_column(Column(data=['mag']*len(table), name='unit'))
+        table.add_column(Column(data=['2013AJ....145...44Z']*len(table), name='bib'))
+
+        return table
+
 ################################################################################
 class CatalogLoader(object):
     '''
     This class helps to load a big list of catalogs to photobject colection.
     '''
     def __init__(self, *args, **kwargs):
-        self._catalog_list = {'Simbad':Simbad_Catalog()}
+        self._catalog_list = {'Simbad':Simbad_Catalog(),
+                              'UCAC4':UCAC4_Catalog()}
 
     def query_catalog(self, catalog_name, center, radius, filter=None, *args, **kwargs):
         '''
