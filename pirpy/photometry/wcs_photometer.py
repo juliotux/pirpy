@@ -105,6 +105,34 @@ class WCSPhotometer(object):
         ra, dec = wcs.wcs_pix2world(x, y, 0)
         return ra, dec
 
+    def _check_inside_shape(self, id, ra, dec, x, y, x0, x1, y0, y1, limit_radius):
+        '''
+        Check if the x, y coordinates are inside the values x0-x1 and y0-y1.
+        '''
+        xt = []
+        yt = []
+        idt = []
+        rat = []
+        dect = []
+
+        for x2,y2,i,r,d in zip(x, y, id, ra, dec):
+            if (x0 + limit_radius) < x2 < (x1 - limit_radius) and (y0 + limit_radius) < y2 < (y1 - limit_radius):
+                xt.append(x2)
+                yt.append(y2)
+                idt.append(i)
+                rat.append(r)
+                dect.append(d)
+
+        return idt, rat, dect, xt, yt
+
+    def _get_xy(self, id, ra, dec, wcs, shape, limit_radius):
+        '''
+        Returns the x, y coordinates from a list of ra, dec positions and a
+        wcs.
+        '''
+        x, y = wcs.wcs_world2pix(ra, dec, 1)
+        return x, y
+
     def _get_id(self, ra, dec, add_new=True):
         '''
         Returns the id of the best match from a RA,DEC pair in the position catalog.
@@ -131,6 +159,7 @@ class WCSPhotometer(object):
                             snr, bkg_method='median',
                             elipse=False,
                             add_uid=True,
+                            objects = None,
                             *args, **kwargs):
         '''
         Process the photometry for the file queue.
@@ -146,14 +175,20 @@ class WCSPhotometer(object):
             try:
                 wcs, data, jd = self._load_image(i)
                 bkg, rms = phot.get_background(data, bkg_method, **kwargs)
-                x, y = phot.detect_sources(data, phot.get_threshold(bkg, rms, snr), **kwargs)
-                log.debug("%i detected sources." % len(x))
+                if objects is None:
+                    x, y = phot.detect_sources(data, phot.get_threshold(bkg, rms, snr), **kwargs)
+                    log.debug("%i detected sources." % len(x))
+                    ra, dec = self._get_radec(x, y, wcs)
+                    id = self._get_id(ra, dec, add_new=add_uid)
+                else:
+                    id = objects.objects['ID']
+                    ra, dec = objects.objects['RA'], objects.objects['RA']
+                    x, y = self._get_xy(ra, dec, wcs)
+                id, ra, dec, x, y = self._check_inside_shape(id, ra, dec, x, y, 0, data.shape[0], 0, data.shape[1], 2*r_out)
                 flux, fluxerr, flag = phot.aperture_photometry(data, x, y,
                                                                r, r_in, r_out,
                                                                elipse=False,
                                                                **kwargs)
-                ra, dec = self._get_radec(x, y, wcs)
-                id = self._get_id(ra, dec, add_new=add_uid)
                 self._objects.add_results(jd, id, flux, fluxerr, ra, dec)
             except:
                 log.error("Image %s failed." % i)
