@@ -15,6 +15,7 @@ import numpy as np
 
 from ..math.list_tools import to_list, match_lengths
 from ..math.mag_tools import *
+from ..math.stats import nanmad
 from .catalog_loader import CatalogLoader
 from .catalog_loader import order_names as default_order_names
 
@@ -192,8 +193,7 @@ class PhotObject(object):
         mags = self.relative_magnitude(photobject)
 
         if mean_method == 'median':
-            #TODO: replace the nanstd by a nanmad when implement it
-            return np.nanmedian(mags), np.nanstd(mags)
+            return np.nanmedian(mags), nanmad_std(mags)
         if mean_method == 'mean':
             return np.nanmean(mags), np.nanstd(mags)
 
@@ -202,7 +202,6 @@ class PhotColection(object):
     '''
     A colection to store a lot of photobjects.
     '''
-    #TODO: load_objects_from_catalog
     def __init__(self, filter=None):
         self._list = {}
         self._filter = filter
@@ -434,8 +433,7 @@ class PhotColection(object):
                 except:
                     pass
 
-        #TODO: replace the nanstd by a nanmad when implement it
-        return np.nanmedian(mags), np.nanstd(mags)
+        return np.nanmedian(mags), nanmad_std(mags)
 
     def load_objects_from_table(self, table, id_key='ID', ra_key='RA', dec_key='DEC',
                                 flux_key='MAG', flux_error_key='MAG_ERR', flux_unit_key='MAG_UNIT', flux_bib_key=None,
