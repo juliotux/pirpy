@@ -113,6 +113,11 @@ class PhotObject(object):
         if bib is not None:
             self._cat_bib = bib
 
+    def clear_phot(self):
+        self._sums = []
+        self._sums_error = []
+        self._jds = []
+
     def get_sum(self, jd):
         return [(j,k) for i,j,k in
                 zip(self._jds, self._sums, self._sums_error)
@@ -131,9 +136,9 @@ class PhotObject(object):
                 The error in the photometry meassurement.
         '''
         try:
-            jd = float(jd)
-            sum = float(sum)
-            error = float(error)
+            jd = np.float(jd)
+            sum = np.float(sum)
+            error = np.float(error)
         except:
             log.error('All the arguments must be numbers. Got: jd=%f   sum=%f   error=%f' % (jd, sum, error))
             raise ValueError('Not number values.')
@@ -180,6 +185,7 @@ class PhotObject(object):
 
         #TODO: implement errors
         mags = []
+        jds = []
 
         jd2set = set(photobject.jd)
 
@@ -187,21 +193,21 @@ class PhotObject(object):
             if jd1 in jd2set:
                 corr_factor = photobject.cat_mag - flux2mag(photobject.get_sum(jd1)[0])
                 mags.append(flux2mag(pht1) + corr_factor)
+                jds.append(float(jd1))
 
-        return mags
+        return jds, mags
 
     def relative_mean_magnitude(self, photobject, mean_method='median'):
         '''
         Gets the mean magnitude based in the comparision with another photobject.
         '''
 
-        mags = self.relative_magnitude(photobject)
+        jds, mags = self.relative_magnitude(photobject)
 
         if mean_method == 'median':
-            return np.nanmedian(mags), nanmad_std(mags)
+            return np.nanmedian(jds), np.nanmedian(mags), nanmad_std(mags)
         if mean_method == 'mean':
-            return np.nanmean(mags), np.nanstd(mags)
-
+            return np.nanmean(jds), np.nanmean(mags), np.nanstd(mags)
 
 class PhotColection(object):
     '''
@@ -337,6 +343,10 @@ class PhotColection(object):
 
         return Table([id, jd, flux, error], names=('ID','JD','FLUX','FLUX_ERROR'))
 
+    def clear_photometry(self):
+        for i in self._list.keys():
+            self._list[i].clear_phot
+
     def set_filter(self, filter):
         '''
         Set the curent filter.
@@ -434,15 +444,18 @@ class PhotColection(object):
         '''
         obj1 = self._list[id]
         mags = []
+        jds = []
 
         for i in self._list.keys():
             if i != id:
                 try:
-                    mags.append(obj1.relative_mean_magnitude(self._list[i])[0])
+                    jd, mag, magerr = obj1.relative_mean_magnitude(self._list[i])
+                    mags.append(mag)
+                    jds.append(jd)
                 except:
                     pass
 
-        return np.nanmedian(mags), nanmad_std(mags)
+        return np.nanmedian(jds), np.nanmedian(mags), nanmad_std(mags)
 
     def load_objects_from_table(self, table, id_key='ID', ra_key='RA', dec_key='DEC',
                                 flux_key='MAG', flux_error_key='MAG_ERR', flux_unit_key='MAG_UNIT', flux_bib_key=None,

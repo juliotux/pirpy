@@ -12,6 +12,8 @@ __all__ = ['CatalogLoader', 'order_names']
 
 order_names = ['RMC', 'HD', 'LHA', 'HIP', 'AAVSO', 'ASAS', 'UCAC4', 'TYC']
 
+Vizier.columns = ['all']
+
 class Catalog(object):
     '''
     Stores the configuration of a single catalog.

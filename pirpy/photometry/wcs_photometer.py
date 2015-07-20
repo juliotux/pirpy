@@ -105,15 +105,19 @@ class WCSPhotometer(object):
         ra, dec = wcs.wcs_pix2world(x, y, 0)
         return ra, dec
 
-    def _check_inside_shape(self, id, ra, dec, x, y, x0, x1, y0, y1, limit_radius):
+    def _check_inside_shape(self, id, ra, dec, x, y, region, limit_radius):
         '''
         Check if the x, y coordinates are inside the values x0-x1 and y0-y1.
+
+        region is in format [x0, x1, y0, y1]
         '''
         xt = []
         yt = []
         idt = []
         rat = []
         dect = []
+
+        x0, x1, y0, y1 = region
 
         for x2,y2,i,r,d in zip(x, y, id, ra, dec):
             if (x0 + limit_radius) < x2 < (x1 - limit_radius) and (y0 + limit_radius) < y2 < (y1 - limit_radius):
@@ -125,7 +129,7 @@ class WCSPhotometer(object):
 
         return idt, rat, dect, xt, yt
 
-    def _get_xy(self, id, ra, dec, wcs, shape, limit_radius):
+    def _get_xy(self, ra, dec, wcs):
         '''
         Returns the x, y coordinates from a list of ra, dec positions and a
         wcs.
@@ -155,24 +159,35 @@ class WCSPhotometer(object):
         self._file_queue = self._file_queue.union(fnames)
         log.info("%i added to file_queue." % len(fnames))
 
+    def clear_queue(self):
+        '''
+        Cleans the file queue.
+        '''
+        self._file_queue.clear()
+
     def aperture_photometry(self, r, r_in, r_out,
-                            snr, bkg_method='median',
+                            snr=20, bkg_method='median',
                             elipse=False,
                             add_uid=True,
                             objects = None,
+                            xy_limits = None,
                             *args, **kwargs):
         '''
         Process the photometry for the file queue.
+
+        objects are a PhotColection with the objects to do the photometry.
         '''
         #TODO: now, don't handle the elipse photometry
         #TODO: Not handle error flags at this momment.
-        #TODO: implement a way to specify the position setting
         if self.algorithm == 'sextractor':
             from . import sep_photometry as phot
 
+        if objects is not None:
+            id1, ra1, dec1 = objects._id_ra_dec()
+
         for i in self._file_queue:
-            log.debug("Meassuring photometry from %s file." % i)
             try:
+                log.debug("Meassuring photometry from %s file." % i)
                 wcs, data, jd = self._load_image(i)
                 bkg, rms = phot.get_background(data, bkg_method, **kwargs)
                 if objects is None:
@@ -181,10 +196,11 @@ class WCSPhotometer(object):
                     ra, dec = self._get_radec(x, y, wcs)
                     id = self._get_id(ra, dec, add_new=add_uid)
                 else:
-                    id = objects.objects['ID']
-                    ra, dec = objects.objects['RA'], objects.objects['RA']
-                    x, y = self._get_xy(ra, dec, wcs)
-                id, ra, dec, x, y = self._check_inside_shape(id, ra, dec, x, y, 0, data.shape[0], 0, data.shape[1], 2*r_out)
+                    x, y = self._get_xy(ra1, dec1, wcs)
+                if xy_limits is None:
+                    xy_limits = [0, data.shape[0], 0, data.shape[1]]
+                id, ra, dec, x, y = self._check_inside_shape(id1, ra1, dec1, x, y, xy_limits, 2*r_out)
+                log.info("%i objects in image %s" % (len(id), i))
                 flux, fluxerr, flag = phot.aperture_photometry(data, x, y,
                                                                r, r_in, r_out,
                                                                elipse=False,
@@ -192,4 +208,3 @@ class WCSPhotometer(object):
                 self._objects.add_results(jd, id, flux, fluxerr, ra, dec)
             except:
                 log.error("Image %s failed." % i)
-
