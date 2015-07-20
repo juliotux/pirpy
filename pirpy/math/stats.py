@@ -1,8 +1,8 @@
 import numpy as np
 
-__all__ = ['nanmad']
+__all__ = ['nanmad','nanmad_std']
 
-def nanmad(a, axis=None, nanmad_std):
+def nanmad(a, axis=None):
     '''
     Calculates the Median Absolute Deviation from an array.
     '''

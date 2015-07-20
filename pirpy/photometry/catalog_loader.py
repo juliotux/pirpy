@@ -1,6 +1,7 @@
 from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
 from astropy.coordinates.angles import Angle
+from astropy.coordinates import SkyCoord
 from astropy.table import Column
 
 from ..mp import mult_ret
@@ -9,7 +10,7 @@ from ..log import log
 
 __all__ = ['CatalogLoader', 'order_names']
 
-order_names = ['RMC', 'HD', 'LHA', 'HIP', 'AAVSO', 'ASAS', 'UCAC4', 'TYC', '2MASS', 'OGLE']
+order_names = ['RMC', 'HD', 'LHA', 'HIP', 'AAVSO', 'ASAS', 'UCAC4', 'TYC']
 
 class Catalog(object):
     '''
@@ -60,32 +61,54 @@ class QueryData(object):
 def simbad_query_ids(name):
     return Simbad.query_objectids(name)
 
+def simbad_query_object0(center):
+    return Simbad.query_region(center)[0]
+
+def mult_simbad_query_ids(names, nprocess=10):
+    return mult_ret(simbad_query_ids, names, nprocess=nprocess)
+
+def mult_simbad_query_object0(centers, nprocess=10):
+    return mult_ret(simbad_query_object0, centers, nprocess=nprocess)
+
+def parse_names_with_priority(name, names_list=None, names_priority=order_names):
+    if names_list is None:
+        return name
+
+    for i in names_priority:
+        for j in names_list:
+            if j['ID'][0:len(i)] == i:
+                return j['ID']
+
+    return name
+
+def resolve_name_from_simbad(sipa):
+    '''
+    Resolves a name of one star from Simbad, following a priority order.
+    '''
+    skycoord = sipa[0]
+    id = sipa[1]
+    priority = sipa[2]
+    angle_lim = sipa[3]
+
+    q = Simbad.query_region(skycoord)[0]
+    if skycoord.separation(SkyCoord(q['RA'], q['DEC'], frame='icrs', unit=('hourangle','degree'))) <= Angle(angle_lim):
+        names_list = Simbad.query_objectids(q['MAIN_ID'])
+        return id, parse_names_with_priority(id, names_list, names_priority=priority)
+    else:
+        return id, None
+
 class Simbad_Catalog(Catalog):
     def __init__(self):
         Catalog.__init__(self, 'Simbad', description='Simbad online database.')
         self._simbad = None
 
-    def _parse_names_with_priority(self, name, names_list, priority):
-        if names_list is None:
-            return name
-
-        for i in priority:
-            for j in names_list:
-                if j['ID'][0:len(i)] == i:
-                    return j['ID']
-
-        return name
-
     def _set_names(self, table, **kwargs):
-        if self._simbad is None:
-            self._simbad = Simbad()
-
         names_order = kwargs.pop('names_priority', None)
         if names_order is not None:
-            names_list = mult_ret(simbad_query_ids, table['MAIN_ID'].data.tolist(), nprocess=10)
+            names_list = mult_simbad_query_ids(table['MAIN_ID'].data.tolist())
 
             for i in range(len(table)):
-                table[i]['MAIN_ID'] = self._parse_names_with_priority(table[i]['MAIN_ID'], names_list[i], names_order)
+                table[i]['MAIN_ID'] = parse_names_with_priority(table[i]['MAIN_ID'], names_list[i], names_order)
 
         return table
 
@@ -103,7 +126,7 @@ class Simbad_Catalog(Catalog):
                 'flux_bib_key':'FLUX_BIBCODE_%s' % filter,
                 'flux_unit_key':'FLUX_UNIT_%s' % filter}
 
-    def _load(self, center, radius, filter=None, names_priority=order_names):
+    def _load(self, center, radius, filter=None, names_priority=None):
         '''
         Loads the object list from a Simbad query, centered in `center` and
         within a `radius`. It can update existent objects, including names.

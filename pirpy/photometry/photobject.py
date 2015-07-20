@@ -15,9 +15,10 @@ import numpy as np
 
 from ..math.list_tools import to_list, match_lengths
 from ..math.mag_tools import *
-from ..math.stats import nanmad
-from .catalog_loader import CatalogLoader
+from ..math.stats import nanmad, nanmad_std
+from .catalog_loader import CatalogLoader, parse_names_with_priority, resolve_name_from_simbad
 from .catalog_loader import order_names as default_order_names
+from ..mp import mult_ret
 
 from ..log import log
 
@@ -86,6 +87,10 @@ class PhotObject(object):
     @property
     def cat_unit(self):
         return self._cat_unit
+
+    @property
+    def skycoord(self):
+        return SkyCoord(self._ra, self._dec, frame='icrs', unit=('degree','degree'))
 
     def set_ra(self, ra):
         self._ra = ra
@@ -342,8 +347,12 @@ class PhotColection(object):
         '''
         Renames a star in the list.
         '''
-        self._list[new_name] = self._list.pop(old_name)
-        self._list[new_name].set_id(new_name)
+        if new_name is None:
+            log.warn('Object %s will not be renamed to None.' % old_name)
+        else:
+            if new_name != old_name:
+                self._list[new_name] = self._list.pop(old_name)
+                self._list[new_name].set_id(new_name)
 
     def add_object(self, id, ra=None, dec=None, mag=None, mag_err=None, mag_unit=None,
                    update_if_exists=True, update_names=True, sep_limit=1*u.arcsec):
@@ -507,6 +516,21 @@ class PhotColection(object):
             self._catalog_loader = CatalogLoader()
 
         self._catalog_loader.list_catalogs()
+
+    def resolve_names_from_simbad(self, names_priority=default_order_names, sep_limit=1*u.arcsec, nprocess=10):
+        '''
+        Resolve the names of some stars using Simbad.
+        '''
+        from astroquery.simbad import Simbad
+
+        args = [(self._list[i].skycoord, i) for i in self._list.keys()]
+        args = zip(*args)
+        args = zip(args[0], args[1], [names_priority]*len(self._list), [sep_limit]*len(self._list))
+
+        names_catalog = mult_ret(resolve_name_from_simbad, args, nprocess=nprocess)
+
+        for i in names_catalog:
+            self.rename_star(i[0], i[1])
 
     def save_objects_catalog(self, fname, with_mags=True):
         '''
