@@ -287,19 +287,19 @@ class PhotColection(object):
 
     def _id_from_table(self, table, id_key='ID'):
         try:
-            id = table[id_key].data.data
+            id = table[id_key].data
         except KeyError:
             raise ValueError("Problems loading tables: wrong keys: id_key=%s" % id_key)
         return id
 
     def _mags_from_table(self, table, flux_key='FLUX', flux_error_key='FLUX_ERROR', flux_unit_key='FLUX_UNIT'):
         try:
-            flux = table[flux_key].data.data
-            erro = table[flux_error_key].data.data
-            unit = table[flux_unit_key].data.data
-        except KeyError:
-            raise ValueError("Problems loading tables: wrong keys: flux_key=%s flux_error_key=%s flux_unit_key=%s" %
-                             (flux_key, flux_error_key, flux_unit_key))
+            flux = table[flux_key].data
+            erro = table[flux_error_key].data
+            unit = table[flux_unit_key].data
+        except:
+            log.error("Problems loading tables: wrong keys: flux_key=%s flux_error_key=%s flux_unit_key=%s" % (flux_key, flux_error_key, flux_unit_key))
+            return [None]*len(table), [None]*len(table), [None]*len(table)
         return flux, erro, unit
 
     def _update_kdtree(self):
@@ -399,8 +399,8 @@ class PhotColection(object):
                     log.info("Object %s will be updated to the coordinates: ra=%f, dec=%f" % (id, ra, dec))
                     self._list[id].set_ra(ra)
                     self._list[id].set_dec(dec)
-                if (mag is not None and mag_err is not None and mag_unit is not None) and update_if_exists:
-                    log.info("Object %s will be updated to catalog magnitude: mag=%f, mag_err=%f, mag_unit=%f")
+                if (mag is not None and mag_err is not None and mag_unit is not None) and (self._try_float(mag) and self._try_float(mag_err)) and update_if_exists:
+                    log.info("Object %s will be updated to catalog magnitude: mag=%f, mag_err=%f, mag_unit=%s" % (float(mag), float(mag_err), mag_unit))
                     self._list[id].set_mag(mag, mag_err, mag_unit)
             else:
                 log.error("Object %s already exists and not updated" % id)

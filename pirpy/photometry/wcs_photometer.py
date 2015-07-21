@@ -7,6 +7,8 @@ from astropy.stats import sigma_clipped_stats
 from astropy.wcs import WCS
 from astropy.coordinates import SkyCoord
 
+import numpy as np
+
 from .photobject import PhotObject, PhotColection
 from .allowed_algorithms import allowed, todo
 from ..math.list_tools import to_list, match_lengths
@@ -103,31 +105,25 @@ class WCSPhotometer(object):
         wcs.
         '''
         ra, dec = wcs.wcs_pix2world(x, y, 0)
-        return ra, dec
+        return np.array(ra), np.array(dec)
 
-    def _check_inside_shape(self, id, ra, dec, x, y, region, limit_radius):
+    def _check_inside_shape(self, x, y, region, limit_radius):
         '''
         Check if the x, y coordinates are inside the values x0-x1 and y0-y1.
 
         region is in format [x0, x1, y0, y1]
         '''
-        xt = []
-        yt = []
-        idt = []
-        rat = []
-        dect = []
-
         x0, x1, y0, y1 = region
 
-        for x2,y2,i,r,d in zip(x, y, id, ra, dec):
-            if (x0 + limit_radius) < x2 < (x1 - limit_radius) and (y0 + limit_radius) < y2 < (y1 - limit_radius):
-                xt.append(x2)
-                yt.append(y2)
-                idt.append(i)
-                rat.append(r)
-                dect.append(d)
+        x = np.array(x)
+        y = np.array(y)
 
-        return idt, rat, dect, xt, yt
+        tx0 = x > (x0 + limit_radius)
+        tx1 = x < (x1 - limit_radius)
+        ty0 = y > (y0 + limit_radius)
+        ty1 = y < (y1 - limit_radius)
+
+        return tx0 & tx1 & ty0 & ty1
 
     def _get_xy(self, ra, dec, wcs):
         '''
@@ -135,7 +131,7 @@ class WCSPhotometer(object):
         wcs.
         '''
         x, y = wcs.wcs_world2pix(ra, dec, 1)
-        return x, y
+        return np.array(x), np.array(y)
 
     def _get_id(self, ra, dec, add_new=True):
         '''
@@ -148,7 +144,7 @@ class WCSPhotometer(object):
         for i in range(len(ra)):
             ids[i] = self._objects.match_point(ra[i], dec[i], add_new=add_new)
 
-        return ids
+        return np.array(ids)
 
     def queue_files(self, fnames):
         '''
@@ -187,21 +183,27 @@ class WCSPhotometer(object):
 
         for i in self._file_queue:
             try:
-                log.debug("Meassuring photometry from %s file." % i)
+            #if True:
+                log.info("Meassuring photometry from %s file." % i)
                 wcs, data, jd = self._load_image(i)
                 bkg, rms = phot.get_background(data, bkg_method, **kwargs)
                 if objects is None:
                     x, y = phot.detect_sources(data, phot.get_threshold(bkg, rms, snr), **kwargs)
+                    x = np.array(x)
+                    y = np.array(y)
                     log.debug("%i detected sources." % len(x))
-                    ra, dec = self._get_radec(x, y, wcs)
-                    id = self._get_id(ra, dec, add_new=add_uid)
+                    ra1, dec1 = self._get_radec(x, y, wcs)
+                    id1 = self._get_id(ra1, dec1, add_new=add_uid)
                 else:
                     x, y = self._get_xy(ra1, dec1, wcs)
                 if xy_limits is None:
                     xy_limits = [0, data.shape[0], 0, data.shape[1]]
-                id, ra, dec, x, y = self._check_inside_shape(id1, ra1, dec1, x, y, xy_limits, 2*r_out)
+                t = self._check_inside_shape(x, y, xy_limits, 2*r_out)
+                id = np.array(id1)[t]
+                ra = np.array(ra1)[t]
+                dec = np.array(dec1)[t]
                 log.info("%i objects in image %s" % (len(id), i))
-                flux, fluxerr, flag = phot.aperture_photometry(data, x, y,
+                flux, fluxerr, flag = phot.aperture_photometry(data, x[t], y[t],
                                                                r, r_in, r_out,
                                                                elipse=False,
                                                                **kwargs)
