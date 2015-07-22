@@ -555,15 +555,15 @@ class PhotColection(object):
         id, ra, dec = self._id_ra_dec()
         if with_mags:
             mag, err, unit = self._mags()
-            ascii.write(Table([id, ra, dec, mag, err, unit], names=('ID', 'RA', 'DEC', 'MAG', 'MAG_ERR', 'MAG_UNIT')), fname)
+            ascii.write(Table([id, ra, dec, mag, err, unit], names=('ID', 'RA', 'DEC', 'MAG', 'MAG_ERR', 'MAG_UNIT')), fname, format='fixed_width')
         else:
-            ascii.write(Table([id, ra, dec], names=('ID', 'RA', 'DEC')), fname)
+            ascii.write(Table([id, ra, dec], names=('ID', 'RA', 'DEC')), fname, format='fixed_width')
 
     def save_photometry(self, fname):
         '''
         Save the results to a file.
         '''
-        ascii.write(self.get_photometry, fname)
+        ascii.write(self.get_photometry, fname, format='fixed_width')
 
     def match_point(self, ra, dec, r_lim=1*u.arcsec, add_new=False):
         '''
