@@ -345,7 +345,7 @@ class PhotColection(object):
 
     def clear_photometry(self):
         for i in self._list.keys():
-            self._list[i].clear_phot
+            self._list[i].clear_phot()
 
     def set_filter(self, filter):
         '''
