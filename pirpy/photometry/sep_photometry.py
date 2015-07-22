@@ -152,6 +152,7 @@ def detect_sources(data, threshold, elipse = False, *args, **kwargs):
 
 def aperture_photometry(data, x, y, r, r_in, r_out,
                         elipse = False, abtheta = None,
+                        rms = None,
                         *args, **kwargs):
     '''
     Do the aperture photometry with local sky subtraction.
@@ -183,7 +184,7 @@ def aperture_photometry(data, x, y, r, r_in, r_out,
         if abtheta is None:
             raise ValueError("You must give the 'abtheta' argument if you want elipse photometry.")
         a, b, theta = _extract_abtheta(abtheta)
-        return sep.sum_ellipse(data, x, y, a, b, theta, r, bkgann=(r_in, r_out), **kwargs)
+        return sep.sum_ellipse(data, x, y, a, b, theta, r, err=rms, bkgann=(r_in, r_out), **kwargs)
     else:
-        return sep.sum_circle(data, x, y, r, bkgann=(r_in, r_out), **kwargs)
+        return sep.sum_circle(data, x, y, r, err=rms, bkgann=(r_in, r_out), **kwargs)
 

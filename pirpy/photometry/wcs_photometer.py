@@ -161,7 +161,7 @@ class WCSPhotometer(object):
         '''
         self._file_queue.clear()
 
-    def aperture_photometry(self, r, r_in, r_out,
+    def aperture_photometry(self, r=None, r_in=None, r_out=None,
                             snr=20, bkg_method='median',
                             elipse=False,
                             add_uid=True,
@@ -206,6 +206,7 @@ class WCSPhotometer(object):
                 flux, fluxerr, flag = phot.aperture_photometry(data, x[t], y[t],
                                                                r, r_in, r_out,
                                                                elipse=False,
+                                                               rms=rms,
                                                                **kwargs)
                 self._objects.add_results(jd, id, flux, fluxerr, ra, dec)
             except:
