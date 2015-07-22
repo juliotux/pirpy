@@ -181,8 +181,8 @@ class WCSPhotometer(object):
             id1, ra1, dec1 = objects._id_ra_dec()
 
         for i in self._file_queue:
-            #try:
-            if True:
+            try:
+            #if True:
                 log.info("Meassuring photometry from %s file." % i)
                 wcs, data, jd = self._load_image(i)
                 bkg, rms = phot.get_background(data, bkg_method, **kwargs)
@@ -223,5 +223,5 @@ class WCSPhotometer(object):
                 flux, fluxerr, flag = phot.aperture_photometry(data, x[t], y[t], r1, r1_in, r1_out, elipse=False, rms=rms, **kwargs)
                 self._objects.add_results(jd, id, flux, fluxerr, ra, dec)
 
-            #except:
-            #    log.error("Image %s failed." % i)
+            except:
+                log.error("Image %s failed." % i)
