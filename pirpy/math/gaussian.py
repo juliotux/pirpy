@@ -15,7 +15,7 @@ def cut_region(data, xc, yc, side):
 
     return arr, x0, y0
 
-def gaussian(x, x0, sigma, ampitude, base):
+def gaussian(x, x0, sigma, amplitude, base):
     return (amplitude/(sigma*np.sqrt(2*np.pi))*np.exp(-(x - x0)**2/(2*sigma**2))) + base
 
 def _1d_0center_gaussian(x, sigma, amplitude, base):
@@ -44,7 +44,10 @@ def _sigma(p):
     Returns: sigma
     '''
     r, f = p
-    return curve_fit(_1d_0center_gaussian, r, f)[0][0]
+    try:
+        return curve_fit(_1d_0center_gaussian, r, f)[0][0]
+    except:
+        return np.nan
 
 def calc_fwhm(data, xc, yc, max_r=None, nprocess=1):
     '''
@@ -66,4 +69,4 @@ def calc_fwhm(data, xc, yc, max_r=None, nprocess=1):
         params = [calc_r(data, xc, yc)]
 
     sigmas = mult_ret(_sigma, params, nprocess)
-    return 2.355*np.nanmedian(sigmas)
+    return 2.355*np.absolute(np.nanmedian(sigmas))
