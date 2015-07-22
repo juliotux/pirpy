@@ -12,6 +12,7 @@ import numpy as np
 from .photobject import PhotObject, PhotColection
 from .allowed_algorithms import allowed, todo
 from ..math.list_tools import to_list, match_lengths
+from ..math.gaussian import calc_fwhm
 
 from ..log import log
 
@@ -162,11 +163,9 @@ class WCSPhotometer(object):
         self._file_queue.clear()
 
     def aperture_photometry(self, r=None, r_in=None, r_out=None,
-                            snr=20, bkg_method='median',
-                            elipse=False,
-                            add_uid=True,
-                            objects = None,
-                            xy_limits = None,
+                            snr=20, bkg_method='median', max_r=60,
+                            elipse=False, add_uid=True, objects = None,
+                            xy_limits = None, nprocess=1,
                             *args, **kwargs):
         '''
         Process the photometry for the file queue.
@@ -182,32 +181,47 @@ class WCSPhotometer(object):
             id1, ra1, dec1 = objects._id_ra_dec()
 
         for i in self._file_queue:
-            try:
-            #if True:
+            #try:
+            if True:
                 log.info("Meassuring photometry from %s file." % i)
                 wcs, data, jd = self._load_image(i)
                 bkg, rms = phot.get_background(data, bkg_method, **kwargs)
+
                 if objects is None:
                     x, y = phot.detect_sources(data, phot.get_threshold(bkg, rms, snr), **kwargs)
                     x = np.array(x)
                     y = np.array(y)
-                    log.debug("%i detected sources." % len(x))
+                    if r is None or (r_in is None and r_out is None):
+                        fwhm = calc_fwhm(data, x, y, max_r=max_r, nprocess=nprocess)
+                        log.info("The median FWHM of the image is %f" % fwhm)
                     ra1, dec1 = self._get_radec(x, y, wcs)
                     id1 = self._get_id(ra1, dec1, add_new=add_uid)
                 else:
                     x, y = self._get_xy(ra1, dec1, wcs)
+                    if r is None or r_in is None or r_out is None:
+                        x2, y2 = phot.detect_sources(data, phot.get_threshold(bkg, rms, snr), **kwargs)
+                        fwhm = calc_fwhm(data, x2, y2, max_r=max_r, nprocess=nprocess)
+                        log.info("The median FWHM of the image is %f" % fwhm)
+
                 if xy_limits is None:
                     xy_limits = [0, data.shape[0], 0, data.shape[1]]
-                t = self._check_inside_shape(x, y, xy_limits, 2*r_out)
+                t = self._check_inside_shape(x, y, xy_limits, 2*max(r_out,max_r))
                 id = np.array(id1)[t]
                 ra = np.array(ra1)[t]
                 dec = np.array(dec1)[t]
-                log.info("%i objects in image %s" % (len(id), i))
-                flux, fluxerr, flag = phot.aperture_photometry(data, x[t], y[t],
-                                                               r, r_in, r_out,
-                                                               elipse=False,
-                                                               rms=rms,
-                                                               **kwargs)
+
+                log.info("%i objects in image %s." % (len(id), i))
+
+                r1, r1_in, r1_out = r, r_in, r_out
+                if r is None:
+                    r1 = 0.68*fwhm #optimal r for a gaussian profile
+                if r_in is None:
+                    r1_in = 1.5*fwhm
+                if r_out is None:
+                    r1_out = 2.0*fwhm
+
+                flux, fluxerr, flag = phot.aperture_photometry(data, x[t], y[t], r1, r1_in, r1_out, elipse=False, rms=rms, **kwargs)
                 self._objects.add_results(jd, id, flux, fluxerr, ra, dec)
-            except:
-                log.error("Image %s failed." % i)
+
+            #except:
+            #    log.error("Image %s failed." % i)
