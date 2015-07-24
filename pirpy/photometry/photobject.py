@@ -29,6 +29,7 @@ class PhotObject(object):
     The photometry storage for a single object, with fast comparision with
     another.
     '''
+    #TODO: Refactor the code, moving some methods to PhotColection class.
     def __init__(self, id, ra, dec, filter = None,
                  cat_mag=None, cat_mag_err=None, cat_mag_unit=None):
         '''
@@ -191,7 +192,7 @@ class PhotObject(object):
 
         for jd1, pht1 in zip(self._jds, self._sums):
             if jd1 in jd2set:
-                corr_factor = photobject.cat_mag - flux2mag(photobject.get_sum(jd1)[0])
+                corr_factor = float(photobject.cat_mag) - flux2mag(photobject.get_sum(jd1)[0])
                 mags.append(flux2mag(pht1) + corr_factor)
                 jds.append(float(jd1))
 
@@ -399,12 +400,12 @@ class PhotColection(object):
 
                     if (ra is not None and dec is not None) and ((self._list[id].ra is None or self._list[id].dec is None) or update_if_exists):
                         log.info("Object %s will be updated to the coordinates: ra=%f, dec=%f" % (id, ra, dec))
-                        self._list[id].set_ra(ra)
-                        self._list[id].set_dec(dec)
+                        self._list[id].set_ra(float(ra))
+                        self._list[id].set_dec(float(dec))
 
                     if (mag is not None and mag_err is not None and mag_unit is not None) and (self._try_float(mag) and self._try_float(mag_err)) and update_if_exists:
                         log.info("Object %s will be updated to catalog magnitude: mag=%f, mag_err=%f, mag_unit=%s" % (float(mag), float(mag_err), mag_unit))
-                        self._list[id].set_mag(mag, mag_err, mag_unit)
+                        self._list[id].set_mag(float(mag), float(mag_err), mag_unit)
                 else:
                     log.error("Object %s already exists and not updated" % id)
 
@@ -462,14 +463,14 @@ class PhotColection(object):
 
     def load_objects_from_table(self, table, id_key='ID', ra_key='RA', dec_key='DEC',
                                 flux_key='MAG', flux_error_key='MAG_ERR', flux_unit_key='MAG_UNIT', flux_bib_key=None,
-                                update_if_exists=True, update_names=True,
+                                update_if_exists=True, update_names=True, format='fixed_width',
                                 sep_limit=1*u.arcsec, skip_existence_checking=False):
         '''
         Loads the object list from a table.
         '''
         if not isinstance(table, Table):
             try:
-                table = ascii.read(table)
+                table = ascii.read(table, format=format)
             except:
                 raise ValueError("Problem loading the table. Please give an astropy Table or a filename.")
 
@@ -489,14 +490,14 @@ class PhotColection(object):
             for i,r,d in zip(id, ra, dec):
                 self.add_object(i, r, d, update_if_exists=update_if_exists, update_names=update_names, sep_limit=sep_limit)
 
-    def load_photometry_from_table(self, table, id_key='ID', jd_key='JD', flux_key='FLUX', error_key='FLUX_ERROR'):
+    def load_photometry_from_table(self, table, id_key='ID', jd_key='JD', flux_key='FLUX', error_key='FLUX_ERROR', format='basic'):
         '''
         Loads the photometry from a table.
         '''
         if not isinstance(table, Table):
             from astropy.io import ascii
             try:
-                table = ascii.read(table)
+                table = ascii.read(table, format=format)
             except:
                 raise ValueError("Problem loading the table. Please give an astropy.table.Table instance or a filename.")
 
@@ -548,22 +549,22 @@ class PhotColection(object):
         for i in names_catalog:
             self.rename_star(i[0], i[1])
 
-    def save_objects_catalog(self, fname, with_mags=True):
+    def save_objects_catalog(self, fname, with_mags=True, format='fixed_width'):
         '''
         Save the objects catalog to a file.
         '''
         id, ra, dec = self._id_ra_dec()
         if with_mags:
             mag, err, unit = self._mags()
-            ascii.write(Table([id, ra, dec, mag, err, unit], names=('ID', 'RA', 'DEC', 'MAG', 'MAG_ERR', 'MAG_UNIT')), fname, format='fixed_width')
+            ascii.write(Table([id, ra, dec, mag, err, unit], names=('ID', 'RA', 'DEC', 'MAG', 'MAG_ERR', 'MAG_UNIT')), fname, format=format)
         else:
-            ascii.write(Table([id, ra, dec], names=('ID', 'RA', 'DEC')), fname, format='fixed_width')
+            ascii.write(Table([id, ra, dec], names=('ID', 'RA', 'DEC')), fname, format=format)
 
-    def save_photometry(self, fname):
+    def save_photometry(self, fname, format='fixed_width'):
         '''
         Save the results to a file.
         '''
-        ascii.write(self.get_photometry, fname, format='fixed_width')
+        ascii.write(self.get_photometry, fname, format=format)
 
     def match_point(self, ra, dec, r_lim=1*u.arcsec, add_new=False):
         '''
