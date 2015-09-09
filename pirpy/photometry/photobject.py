@@ -24,6 +24,20 @@ from ..log import log
 
 __all__ = ['PhotObject', 'PhotColection']
 
+def between(num, limits):
+    if len(limits) != 2:
+        raise ValueError('The limits must have 2 values for min and max.')
+
+    if limits[0] < limits[1]:
+        min, max = limits
+    else:
+        max, min = limits
+
+    if num > min and num < max:
+        return True
+    else:
+        return False
+
 class PhotObject(object):
     '''
     The photometry storage for a single object, with fast comparision with
@@ -276,7 +290,7 @@ class PhotColection(object):
                 raise ValueError("Problems loading tables: wrong keys: ra_key=%s dec_key=%s" %
                                  (ra_key, dec_key))
 
-            if not self._try_float(r) and not self._try_float(d):
+            if not self._try_float(r) or not self._try_float(d):
                 c = SkyCoord(r, d, frame='icrs', unit=unit)
                 ra[i] = c.ra.degree
                 dec[i] = c.dec.degree
@@ -367,11 +381,10 @@ class PhotColection(object):
 
     def add_object(self, id, ra=None, dec=None, mag=None, mag_err=None, mag_unit=None,
                    update_if_exists=True, update_names=True, sep_limit=1*u.arcsec,
-                   skip_existence_checking=False):
+                   skip_existence_checking=False, mag_limits=None):
         '''
         Adds an object to the list.
         '''
-
         if id is None:
             id = self._new_id()
 
@@ -399,12 +412,12 @@ class PhotColection(object):
                         id = id2
 
                     if (ra is not None and dec is not None) and ((self._list[id].ra is None or self._list[id].dec is None) or update_if_exists):
-                        log.info("Object %s will be updated to the coordinates: ra=%f, dec=%f" % (id, ra, dec))
+                        #log.info("Object %s will be updated to the coordinates: ra=%f, dec=%f" % (id, ra, dec))
                         self._list[id].set_ra(float(ra))
                         self._list[id].set_dec(float(dec))
 
                     if (mag is not None and mag_err is not None and mag_unit is not None) and (self._try_float(mag) and self._try_float(mag_err)) and update_if_exists:
-                        log.info("Object %s will be updated to catalog magnitude: mag=%f, mag_err=%f, mag_unit=%s" % (float(mag), float(mag_err), mag_unit))
+                        #log.info("Object %s will be updated to catalog magnitude: mag=%f, mag_err=%f, mag_unit=%s" % (float(mag), float(mag_err), mag_unit))
                         self._list[id].set_mag(float(mag), float(mag_err), mag_unit)
                 else:
                     log.error("Object %s already exists and not updated" % id)
@@ -464,7 +477,7 @@ class PhotColection(object):
     def load_objects_from_table(self, table, id_key='ID', ra_key='RA', dec_key='DEC',
                                 flux_key='MAG', flux_error_key='MAG_ERR', flux_unit_key='MAG_UNIT', flux_bib_key=None,
                                 update_if_exists=True, update_names=True, format='fixed_width',
-                                sep_limit=1*u.arcsec, skip_existence_checking=False):
+                                sep_limit=1*u.arcsec, skip_existence_checking=False, mag_limits=None):
         '''
         Loads the object list from a table.
         '''
@@ -480,7 +493,8 @@ class PhotColection(object):
         if self._filter is not None:
             mag, err, unit = self._mags_from_table(table, flux_key, flux_error_key, flux_unit_key)
             for i,r,d,m,e,u in zip(id, ra, dec, mag, err, unit):
-                self.add_object(i, r, d, m, e, u, update_if_exists=update_if_exists, update_names=update_names, sep_limit=sep_limit)
+                if (mag_limits is None) or (m is not None and between(m, mag_limits)):
+                    self.add_object(i, r, d, m, e, u, update_if_exists=update_if_exists, update_names=update_names, sep_limit=sep_limit)
             if flux_bib_key is not None:
                 try:
                     self._mag_bib_list.add(i[flux_bib_key])
@@ -514,7 +528,8 @@ class PhotColection(object):
 
     def load_objects_from_catalog(self, catalog_name, center, radius, filter=None,
                                   update_if_exists=True, update_names=True,
-                                  sep_limit=1*u.arcsec, skip_existence_checking=False, **kwargs):
+                                  sep_limit=1*u.arcsec, skip_existence_checking=False,
+                                  mag_limits=None, **kwargs):
         '''
         Loads the object list from online catalogs.
         '''
@@ -523,7 +538,9 @@ class PhotColection(object):
 
         result = self._catalog_loader.query_catalog(catalog_name, center, radius, filter=self._filter, **kwargs)
 
-        self.load_objects_from_table(result.table, update_if_exists=update_if_exists, update_names=update_names, sep_limit=sep_limit, **result.keys)
+        self.load_objects_from_table(result.table, update_if_exists=update_if_exists,
+                                     update_names=update_names, sep_limit=sep_limit,
+                                     mag_limits=mag_limits, **result.keys)
 
     def list_online_catalogs(self):
         '''

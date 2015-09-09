@@ -1,5 +1,7 @@
 from astroquery.vizier import Vizier
 from astroquery.simbad import Simbad
+from astroquery.irsa import Irsa
+
 from astropy.coordinates.angles import Angle
 from astropy.coordinates import SkyCoord
 from astropy.table import Column
@@ -165,7 +167,7 @@ class UCAC4_Catalog(Catalog):
             log.warn("No filter specified, loading just astrometric data.")
             return {'id_key':'ID',
                     'ra_key':'RAJ2000',
-                    'dec_key':'DEJ2000',}
+                    'dec_key':'DEJ2000'}
 
         if filter not in {'V','B','H','J','K','g','r','i'}:
             raise ValueError("UCAC4 catalog only have the following filters: B V J H K g r i")
@@ -188,6 +190,42 @@ class UCAC4_Catalog(Catalog):
 
         return table
 
+class DENIS_Catalog(Catalog):
+    def __init__(self):
+        Catalog.__init__(self, 'DENIS', vizier_table='B/denis', vizier_query=True)
+        Vizier.ROW_LIMIT = -1
+
+    def _set_names(self, table, **kwargs):
+        return  ["DENIS %s" % i['DENIS'] for i in table]
+
+    def _keys(self, filter=None):
+        if filter is None:
+            log.warn("No filter specified, loading just astrometric data.")
+            return {'id_key':'ID',
+                    'ra_key':'RAJ2000',
+                    'dec_key':'DEJ2000'}
+
+        if filter not in {'I', 'J', 'K'}:
+            raise ValueError("DENIS catalog only have the following filters: I J K")
+
+        return {'id_key':'ID',
+                'ra_key':'RAJ2000',
+                'dec_key':'DEJ2000',
+                'flux_key':'%smag' % filter,
+                'flux_error_key':'e_%smag' % filter,
+                'flux_bib_key':'bib',
+                'flux_unit_key':'unit'}
+
+    def _load(self, center, radius, filter=None):
+        table = Vizier.query_region(center, radius=Angle(radius), catalog=self._table)[0]
+        names = self._set_names(table)
+
+        table.add_column(Column(data=names, name='ID'))
+        table.add_column(Column(data=['mag']*len(table), name='unit'))
+        table.add_column(Column(data=['2005yCat.2263....0T']*len(table), name='bib'))
+
+        return table
+
 ################################################################################
 class CatalogLoader(object):
     '''
@@ -195,7 +233,8 @@ class CatalogLoader(object):
     '''
     def __init__(self, *args, **kwargs):
         self._catalog_list = {'Simbad':Simbad_Catalog(),
-                              'UCAC4':UCAC4_Catalog()}
+                              'UCAC4':UCAC4_Catalog(),
+                              'DENIS':DENIS_Catalog()}
 
     def query_catalog(self, catalog_name, center, radius, filter=None, *args, **kwargs):
         '''
