@@ -253,4 +253,3 @@ class CatalogLoader(object):
         '''
         for i in self._catalog_list.keys():
             print(i + ' : ' + self._catalog_list[i].description)
-    

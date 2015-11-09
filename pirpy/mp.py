@@ -1,6 +1,12 @@
 from multiprocessing import Pool
 from subprocess import call
 
+try:
+    import os
+    num_threads = os.environ['OMP_NUM_THREADS']
+except:
+    num_threads = 1
+
 def mult_ret(func, arg, nprocess):
     '''
     Function to return a list of values, based on a list of arguments

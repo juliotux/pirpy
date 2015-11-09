@@ -2,9 +2,9 @@
 Module to handle io operations using multiprocess or batch operations.
 '''
 
-from ccdproc import CCDData
 from astropy import units as u
 from os.path import join
+from astropy.io import fits
 
 from ..mp import mult_ret
 

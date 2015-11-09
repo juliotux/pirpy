@@ -13,7 +13,7 @@ def cut_region(data, xc, yc, side):
 
     arr = data[y0:y1+1, x0:x1+1]
 
-    return arr, x0, y0
+    return arr, xc-x0, yc-y0
 
 def gaussian(x, x0, sigma, amplitude, base):
     return (amplitude/(sigma*np.sqrt(2*np.pi))*np.exp(-(x - x0)**2/(2*sigma**2))) + base

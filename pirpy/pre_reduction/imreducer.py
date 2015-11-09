@@ -4,16 +4,13 @@ General image calibration with bias/dark/flat extraction.
 
 from astropy.io import fits
 from astropy.time import Time
-from astropy import units as u
-from ccdproc import CCDData
-from ccdproc.combiner import Combiner
 import numpy as np
 import bottleneck as bn
 from os import path
 
-from ..math import *
-from ..io.mkdir_p import mkdir_p
-from ..io.io_tool import ccd_read
+from ccdproc import image_collection
+
+from ..math.imarith import *
 from .lacosmic import lacosmic_subtract
 
 class ImReduce():

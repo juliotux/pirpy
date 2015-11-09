@@ -1,0 +1,6 @@
+PSF Photometry algorith propose:
+ -> Identify the stars, using photutils (maybe)
+ -> Estimate the FWHM and RMS of a Gaussian (or Lorentzian) fitting of the stars
+ -> Identify the n brighests stars, isolated from others in a box of side l
+ -> Create the PSF by combining these images
+ -> Perform the PSF fitting

@@ -1,0 +1,5 @@
+Organize Files:
+ -> Separate files by type: bias, flat, dark, science
+  -> Separate than by detector configurations, like readout rate, platesacle, binning, detector serial, filter, etc. 
+ -> Group and make master files for bias, flat and dark
+ -> Automatic found the science data and pre-reduce than using the master files

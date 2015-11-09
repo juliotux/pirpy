@@ -20,7 +20,7 @@ def from_basename(basename, start_count, n_img, pad, sep='_', base_dir=''):
     As this kind of name is used for other observatories, with different
     basename-number separator, you can set the sep variable to customize it.
 
-    Args:
+    Parameters:
         basename : string
             The basename of the file list.
         start_count : int
