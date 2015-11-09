@@ -11,6 +11,7 @@ from astropy.coordinates import SkyCoord
 from astropy.coordinates.angles import Angle
 from astropy.stats import median_absolute_deviation as mad
 import numpy as np
+from ast import literal_eval
 
 from ..math.list_tools import to_list, match_lengths
 from ..math.mag_tools import *
@@ -146,9 +147,6 @@ class ResultStore(object):
 
         return lc
 
-    def magnitude_catalog(self, frame_group=None, frame=None, mag_limits=(-100,100)):
-
-
     def diferential_magnitude(self, id, frame_group=None, n_it=100, mag_limits=(-100,100),
                                algorithm='montecarlo', percentage=0.5,
                                return_array=False):
@@ -276,3 +274,47 @@ class ResultStore(object):
 
         hdulist = fits.HDUList(hdus)
         hdulist.writeto(fname)
+
+    def load_fits(self, fname):
+        f = fits.open(fname)
+
+        #loading the object catalog
+        self.object_catalog._cat = np.zeros(0, dtype=coord_type)
+        self.object_catalog._cat = np.append(self.object_catalog._cat, np.array(zip(
+            f[2].data['id'], f[2].data['ra'], f[2].data['dec'], f[2].data['mag'],
+            f[2].data['mag_error'], f[2].data['mag_unit']
+        ), dtype=coord_type))
+
+        #load the frames
+        for i,name in zip(f[1].data['index'], f[1].data['name']):
+            fd = f[i].data
+            fh = f[i].header
+
+            if 'fit_parameters' in fd.columns.names:
+                fit_parameters = [None]*len(fd['fit_parameters'])
+                for j in range(len(fd['fit_parameters'])):
+                    try:
+                        fit_parameters[j] = literal_eval(fd['fit_parameters'][j])
+                    except ValueError:
+                        fit_parameters[j] = literal_eval(fd['fit_parameters'][j].replace('nan','\'nan\''))
+                fit_parameters = np.array(fit_parameters, dtype=literal_eval(fh['PARAMS']))
+            else:
+                fit_parameters = None
+
+            if 'fit_parameters_errors' in fd.columns.names:
+                fit_parameters_errors = [None]*len(fd['fit_parameters_errors'])
+                for j in range(len(fd['fit_parameters_errors'])):
+                    try:
+                        fit_parameters_errors[j] = literal_eval(fd['fit_parameters_errors'][j])
+                    except ValueError:
+                        fit_parameters_errors[j] = literal_eval(fd['fit_parameters_errors'][j].replace('nan','\'nan\''))
+                fit_parameters_errors = np.array(fit_parameters_errors, dtype=literal_eval(fh['PARAMS']))
+            else:
+                fit_parameters_errors = None
+
+            self.add_results(name, fh['JD'], fd['id'], fd['x'], fd['y'], fd['flux'], fd['flux_error'],
+                             params=fit_parameters, params_errors=fit_parameters_errors)
+
+            for k in fh:
+                if 'GROUP' in k:
+                    self._add_frame_to_groups(name, fh[k])

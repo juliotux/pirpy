@@ -17,7 +17,7 @@ from ..mp import mult_ret, num_threads
 
 from ..log import log
 
-__all__ = ['ObjectCatalog']
+__all__ = ['ObjectCatalog', 'coord_type']
 
 coord_type = np.dtype([('id','S32'),('ra','longdouble'),('dec','longdouble'),
                        ('mag','float32'),('mag_err','float32'),('mag_unit','S16')])
