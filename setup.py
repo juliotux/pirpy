@@ -17,6 +17,8 @@ cmdclass.update({ 'build_ext': build_ext })
 
 setup(
     name='pirpy',
+    packages = ['pirpy', 'pirpy.photometry', 'pirpy.io', 'pirpy.math',
+                'pirpy.astrometry', 'pirpy.pre_reduction'],
     cmdclass = cmdclass,
     ext_modules=ext_modules
 )

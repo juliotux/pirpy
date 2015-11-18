@@ -7,8 +7,8 @@ from astropy.stats import sigma_clipped_stats
 
 from . import psf_kernels
 
-_psf_modes = set(['radial']) #TODO: spatial not working
-_models = set(['gaussian', 'moffat', 'lorentzian', 'prf'])
+_psf_modes = set(['radial', 'spatial']) #TODO: spatial not working
+_models = set(['gaussian', 'moffat', 'prf'])
 
 fitting_flags = {'not_fitted':'N',             #if curve_fit couldn't fit the data
                  'sigma_discrepancy':'S',      #if the fitted sigma is discrepant from the median sigma of the image
@@ -136,16 +136,25 @@ class MoffatPSF(ModelPSF):
         return np.dtype([('x','float64'),('y','float64'),('flux','float64'),('parameters',np.dtype(zip(['amplitude','gamma','alpha','sky'],
                         ['float64']*4)))])
 
+    @property
+    def spatial_dtype(self):
+        return self.radial_dtype
+
     def radial_kernel(self, r, amplitude, gamma, alpha, sky):
         return self.m.radial(r, gamma, alpha, amplitude, sky)
 
+    def spatial_kernel(self, (x, y), x0, y0, amplitude, gamma, alpha, sky):
+        x = x.astype(np.float64)
+        y = y.astype(np.float64)
+        return np.array(self.m.spatial(x, y, x0, y0, gamma, alpha, amplitude)).ravel() + sky
+
     def flux_compute(self, params, errors=None):
         r_max = params[1]*np.sqrt(10**(4/params[2]) - 1) #I(r_max) = 10^(-4)I(0)
-        flux, _ = integrate.nquad(self.m.radial_integrate, [[0, r_max],[0, 2*np.pi]], args=params)
+        flux, _ = integrate.nquad(self.m.integrate, [[0, r_max],[0, 2*np.pi]], args=params)
         flux_error = np.nan
         return flux, flux_error
 
-    def fit(self, x, y, data, position):
+    def fit(self, x, y, data, position, sky=0.0):
         if self.fit_mode == 'radial':
             xp, yp = position
             r, f = xy2r(x, y, data, xp, yp)
@@ -155,22 +164,54 @@ class MoffatPSF(ModelPSF):
             except:
                 nantuple = tuple([np.nan]*4)
                 params, p_errors = nantuple, nantuple
-            try:
-                flux, flux_error = self.flux_compute(params, p_errors)
-            except:
-                flux, flux_error = np.nan, np.nan
 
-            result = np.array([(xp, yp, flux, params)], dtype=self.dtype)
+        if self.fit_mode == 'spatial':
+            try:
+                xp, yp = position
+                guess = (xp, yp, 1, 1, 1, sky)
+                params, p_errors = curve_fit(self.evaluate, (x,y), data.ravel(), p0=guess)
+                p_errors = tuple([i for i in np.diag(p_errors)])
+            except:
+                #raise
+                nantuple = tuple([np.nan]*6)
+                params, p_errors = nantuple, nantuple
+
+            (xp, yp), (xp_err, yp_err) = params[0:2], p_errors[0:2]
+            params, p_errors = params[2:] , p_errors[2:]
+
+        try:
+            flux, flux_error = self.flux_compute(params, p_errors)
+        except:
+            flux, flux_error = np.nan, np.nan
+
+        result = np.array([(xp, yp, flux, params)], dtype=self.dtype)
+        if self.fit_mode == 'radial':
             errors = np.array([(0, 0, flux_error, p_errors)], dtype=self.dtype)
-            return result, errors
+        elif self.fit_mode == 'spatial':
+            errors = np.array([(xp_err, yp_err, flux_error, p_errors)], dtype=self.dtype)
+        return result, errors
+
+
 
 # Fitting Functions
-def compute_sky(z, sigma=2, mode='median'):
+def compute_sky(z, sigma=2, mode='mean'):
     #TODO: Mode can be 'plane' too, but need to be implemented.
-    mean, median, rms = sigma_clipped_stats(z)
+    '''
+    mode:
+        mean: compute de mean of 33% lower values
+        sigma_clip: compute the sigma_clipped stats and do the median of the
+                    values between the lower value and n*sigma.
+    '''
+    if mode == 'mean':
+        z = z.ravel()
+        return np.mean(z[np.argsort(z)[:int(len(z)/3)]])
+    elif mode == 'sigma_clip':
+        mean, median, rms = sigma_clipped_stats(z)
 
-    newz = z.ravel()
-    return np.nanmedian(newz[newz < np.min(z) + sigma*rms])
+        newz = z.ravel()
+        return np.nanmedian(newz[newz < np.min(z) + sigma*rms])
+    else:
+        raise ValueError('Sky compute mode %s unrecognized.' % str(mode))
 
 def xy2r(x, y, data, xc, yc):
     r = np.sqrt((x-xc)**2 + (y-yc)**2)
@@ -185,7 +226,7 @@ def extract_data(data, indices, box_size, position):
 
 def psf_photometry(data, positions, box_size,
                    fit_mode='radial', psf_model='gaussian',
-                   compute_errors=True):
+                   compute_errors=True, sky_method=None):
     '''
     data :
         the 2D data itself
@@ -199,7 +240,7 @@ def psf_photometry(data, positions, box_size,
         centroid and won't be sky subtracted, the sky will be fit). If '2d', the
         code will fit a 2D model to the original data, subtracting a
         "estimated sky".
-    psf_model : 'gaussian', 'moffaf', 'lorentzian', 'prf'
+    psf_model : 'gaussian', 'moffaf', 'prf'
         The kind of psf to be used.
     '''
     if fit_mode not in _psf_modes:
@@ -211,20 +252,21 @@ def psf_photometry(data, positions, box_size,
         psf = GaussianPSF(fit_mode)
     elif psf_model == 'moffat':
         psf = MoffatPSF(fit_mode)
-    elif psf_model == 'lorentzian':
-        psf = LorentzianPSF(fit_mode)
 
     results = np.zeros(0, dtype=psf.dtype)
     if compute_errors:
         errors = np.zeros(0, dtype=psf.dtype)
 
     indices = np.indices(data.shape)
-    if fit_mode == 'radial':
-        for i in range(len(positions)):
-            d, xi, yi = extract_data(data, indices, box_size, positions[i])
-            result, error = psf.fit(xi, yi, d, positions[i])
-            results = np.append(results, result)
-            errors = np.append(errors, error)
+    for i in range(len(positions)):
+        d, xi, yi = extract_data(data, indices, box_size, positions[i])
+        if fit_mode == 'spatial' and sky_method is not None:
+            sky = compute_sky(d, sky_method)
+        else:
+            sky = 0.0
+        result, error = psf.fit(xi, yi, d, positions[i], sky=sky)
+        results = np.append(results, result)
+        errors = np.append(errors, error)
 
     try:
         results = psf.flag_data(results)

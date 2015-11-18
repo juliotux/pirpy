@@ -384,10 +384,10 @@ class WCSPhotometer(object):
                        roundlim = [-2.0, 2.0], sharplim = [-5.0, 5.0],
                        find_convolution_fwhm = 6,
                        add_uid=True, objects = None, xy_limits = None, nprocess=1,
-                       mask=None, match_limit='1arcsec', *args, **kwargs):
+                       mask=None, match_limit='1arcsec', sky_method='mean', *args, **kwargs):
         '''
         Process the PSF photometry in the file queue.
-        '''        
+        '''
         for i in self._file_queue:
             try:
                 log.info("Meassuring photometry from %s file." % i)
@@ -415,7 +415,7 @@ class WCSPhotometer(object):
 
                 flux, flux_error = psf_photometry(data, zip(x[t], y[t]), box_size=box_size,
                                                   fit_mode=fit_mode, psf_model=psf_model,
-                                                  compute_errors=True)
+                                                  compute_errors=True, sky_method=sky_method)
 
                 groups = [None]
                 for j in self._image_groups.keys():
@@ -424,5 +424,5 @@ class WCSPhotometer(object):
                 self.results.add_results(i, jd, id, flux['x'], flux['y'], flux['flux'], flux_error['flux'],
                                          params=flux['parameters'], params_errors=flux_error['parameters'], groups=groups)
             except:
-                log.error("Image %s failed." % i)
-                #raise
+                #log.error("Image %s failed." % i)
+                raise
