@@ -27,30 +27,22 @@ cdef class moffat:
                            double amplitude, double gamma, double alpha, double sky):
         return r*amplitude*(1+(r/gamma)**2)**(-alpha)
 
-    cpdef spatial(self, np.ndarray[double, ndim=2] x, np.ndarray[double, ndim=2] y,
+    cpdef spatial(self, np.ndarray[double, ndim=1] x, np.ndarray[double, ndim=1] y,
                   double x0, double y0,
                   double gamma, double alpha,
                   double amplitude):
         #TODO: Parallelize the code
 
-        '''
-        cdef int N = x.shape[0]
-        cdef int M = x.shape[1]
-
-        x = x.ravel()
-        y = y.ravel()
+        cdef int N = len(x)
 
         cdef double[:] xi = x
         cdef double[:] yi = y
         cdef double[:] result = np.zeros_like(xi)
 
-        for i in prange(N*M, nogil=True):
+        cdef int i
+        for i in prange(N, nogil=True):
             result[i] = amplitude*(1 + ((xi[i] - x0)**2 + (yi[i] - y0)**2)/gamma**2)**(-alpha)
         return result
-        '''
-
-        return amplitude*(1 + ((x - x0)**2 + (y - y0)**2)/gamma**2)**(-alpha)
-
 
 @cython.wraparound(False)
 @cython.boundscheck(False)
@@ -72,7 +64,7 @@ cdef class gaussian:
 
     cpdef spatial(self, np.ndarray[double, ndim=1] x, np.ndarray[double, ndim=1] y,
                   double x0, double y0,
-                  double sigma_x, sigma_y, double theta,
+                  double sigma_x, double sigma_y, double theta,
                   double amplitude):
 
         cdef double cost2 = cos(theta)**2
@@ -91,7 +83,8 @@ cdef class gaussian:
         cdef double [:] xi = x - x0
         cdef double [:] yi = y - y0
 
-        for i in range(N):
+        cdef int i
+        for i in prange(N, nogil=True):
             result[i] = amplitude * exp(-(a*xi[i]**2 + 2*b*xi[i]*yi[i] + c*yi[i]**2))
 
         return result

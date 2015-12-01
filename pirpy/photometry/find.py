@@ -7,35 +7,35 @@ from scipy.ndimage.filters import convolve
 
 def find(image,
          hmin, fwhm,
-         roundlim, 
-         sharplim, 
+         roundlim,
+         sharplim,
          verbose = True):
     """
     Find positive brightness perturbations (i.e stars) in an image.
     Also returns centroids and shape parameters (roundness & sharpness).
     Adapted from 1991 version of DAOPHOT, but does not allow for bad pixels
-    and uses a slightly different centroid algorithm.  Modified in March 
+    and uses a slightly different centroid algorithm.  Modified in March
     2008 to use marginal Gaussian fits to find centroids.  Translated from
     IDL to Python in 2014.
-    
+
     CALLING SEQUENCE:
          import find
          x,y,flux,sharp,round = find.find(image,hmin, fwhm, roundlim, sharplim)
-    
+
     INPUTS:
          image -    2 dimensional image array (integer or real) for which one
                  wishes to identify the stars present
-         hmin  -    Threshold intensity for a point source - should generally 
+         hmin  -    Threshold intensity for a point source - should generally
                      be 3 or 4 sigma above background RMS
          fwhm  -    FWHM (in pixels) to be used in the convolve filter
          sharplim - 2 element vector giving low and high cutoff for the
                  sharpness statistic (Default: [0.2,1.0] ).   Change this
-                 default only if the stars have significantly larger or 
+                 default only if the stars have significantly larger or
                  or smaller concentration than a Gaussian
          roundlim - 2 element vector giving low and high cutoff for the
-                 roundness statistic (Default: [-1.0,1.0] ).   Change this 
+                 roundness statistic (Default: [-1.0,1.0] ).   Change this
                  default only if the stars are significantly elongated.
-    
+
     OPTIONAL INPUT KEYWORDS:
         verbose - set verbose = False to suppress all output display.  Default = True.
 
@@ -46,25 +46,25 @@ def find(image,
               by a Gaussian fit.  Fluxes are NOT converted to magnitudes.
         sharp -  vector containing sharpness statistic for identified stars
         round -  vector containing roundness statistic for identified stars
-    
+
     NOTES:
-         (1) The sharpness statistic compares the central pixel to the mean of 
-              the surrounding pixels.  If this difference is greater than the 
+         (1) The sharpness statistic compares the central pixel to the mean of
+              the surrounding pixels.  If this difference is greater than the
               originally estimated height of the Gaussian or less than 0.2 the height of the
               Gaussian (for the default values of SHARPLIM) then the star will be
-              rejected. 
-    
+              rejected.
+
          (2) More recent versions of FIND in DAOPHOT allow the possibility of
               ignoring bad pixels.  Unfortunately, to implement this in IDL
               would preclude the vectorization made possible with the CONVOL function
               and would run extremely slowly.
-    
-         (3) Modified in March 2008 to use marginal Gaussian distributions to 
+
+         (3) Modified in March 2008 to use marginal Gaussian distributions to
               compute centroid.  (Formerly, find.pro determined centroids by locating
-              where derivatives went to zero -- see cntrd.pro for this algorithm.   
-              This was the method used in very old (~1984) versions of DAOPHOT. )   
+              where derivatives went to zero -- see cntrd.pro for this algorithm.
+              This was the method used in very old (~1984) versions of DAOPHOT. )
               As discussed in more detail in the comments to the code, the  centroid
-              computation here is the same as in IRAF DAOFIND but differs slightly 
+              computation here is the same as in IRAF DAOFIND but differs slightly
               from the current DAOPHOT.
 
      REVISION HISTORY:
@@ -84,34 +84,34 @@ def find(image,
     """
 
     image = image.astype(np.float64)
-    maxbox = 13 #Maximum size of convolution box in pixels 
+    maxbox = 13 #Maximum size of convolution box in pixels
 
-    # Get information about the input image 
+    # Get information about the input image
 
     type = np.shape(image)
     if len(type) != 2:
         print('ERROR - Image array (first parameter) must be 2 dimensional')
     n_x  = type[1] ; n_y = type[0]
-    if verbose:
-        print('Input Image Size is '+str(n_x) + ' by '+ str(n_y))
+    #if verbose:
+    #    print('Input Image Size is '+str(n_x) + ' by '+ str(n_y))
 
-    if fwhm < 0.5:
-        print('ERROR - Supplied FWHM must be at least 0.5 pixels')
+    #if fwhm < 0.5:
+    #    print('ERROR - Supplied FWHM must be at least 0.5 pixels')
 
     radius = 0.637*fwhm
     if radius < 2.001:
         radius = 2.001 #Radius is 1.5 sigma
     radsq = radius**2
-    nhalf = int(radius) 
+    nhalf = int(radius)
     if nhalf > (maxbox-1)/2.:
         nhalf = int((maxbox-1)/2.)
-    nbox = 2*nhalf + 1      #of pixels in side of convolution box 
+    nbox = 2*nhalf + 1      #of pixels in side of convolution box
     middle = nhalf          #Index of central pixel
 
     lastro = n_x - nhalf
     lastcl = n_y - nhalf
     sigsq = (fwhm/2.35482)**2
-    mask = np.zeros( [nbox,nbox], dtype='int8' )   #Mask identifies valid pixels in convolution box 
+    mask = np.zeros( [nbox,nbox], dtype='int8' )   #Mask identifies valid pixels in convolution box
     g = np.zeros( [nbox,nbox] )      #g will contain Gaussian convolution kernel
 
     dd = np.arange(nbox-1,dtype='int') + 0.5 - middle #Constants need to compute ROUND
@@ -132,8 +132,8 @@ def find(image,
     #  Compute quantities for centroid computations that can be used for all stars
     g = np.exp(-0.5*g/sigsq)
 
-    #  In fitting Gaussians to the marginal sums, pixels will arbitrarily be 
-    # assigned weights ranging from unity at the corners of the box to 
+    #  In fitting Gaussians to the marginal sums, pixels will arbitrarily be
+    # assigned weights ranging from unity at the corners of the box to
     # NHALF^2 at the center (e.g. if NBOX = 5 or 7, the weights will be
     #
     #                                 1   2   3   4   3   2   1
@@ -144,7 +144,7 @@ def find(image,
     #      1   2   3   2   1          2   4   6   8   6   4   2
     #                                 1   2   3   4   3   2   1
     #
-    # respectively).  This is done to desensitize the derived parameters to 
+    # respectively).  This is done to desensitize the derived parameters to
     # possible neighboring, brighter stars.
     xwt = np.zeros([nbox,nbox])
     wt = nhalf - np.abs(np.arange(nbox)-nhalf ) + 1
@@ -158,17 +158,17 @@ def find(image,
     sumgy = np.sum(wt*sgx)
     sumgsqy = np.sum(wt*sgy*sgy)
     sumgsqx = np.sum(wt*sgx*sgx)
-    vec = nhalf - np.arange(nbox) 
+    vec = nhalf - np.arange(nbox)
     dgdx = sgy*vec
     dgdy = sgx*vec
     sdgdxs = np.sum(wt*dgdx**2)
-    sdgdx = np.sum(wt*dgdx) 
+    sdgdx = np.sum(wt*dgdx)
     sdgdys = np.sum(wt*dgdy**2)
-    sdgdy = np.sum(wt*dgdy) 
+    sdgdy = np.sum(wt*dgdy)
     sgdgdx = np.sum(wt*sgy*dgdx)
     sgdgdy = np.sum(wt*sgx*dgdy)
 
-    c = g*mask          #Convolution kernel now in c      
+    c = g*mask          #Convolution kernel now in c
     sumc = np.sum(c)
     sumcsq = np.sum(c**2) - sumc**2/pixels
     sumc = sumc/pixels
@@ -178,9 +178,9 @@ def find(image,
     sumc1sq = np.sum(c1**2) - sumc1
     c1 = (c1-sumc1)/sumc1sq
 
-    if verbose:
-        print('RELATIVE ERROR computed from FWHM ' + str(np.sqrt(np.sum(c[good[0],good[1]]**2))))
-        print('Beginning convolution of image')
+    #if verbose:
+    #    print('RELATIVE ERROR computed from FWHM ' + str(np.sqrt(np.sum(c[good[0],good[1]]**2))))
+    #    print('Beginning convolution of image')
 
     h = convolve(image,c)    #Convolve image with kernel "c"
 
@@ -190,13 +190,13 @@ def find(image,
     h[0:nhalf,:] = minh
     h[n_y-nhalf:n_y-1,:] = minh
 
-    if verbose:
-        print('Finished convolution of image')
+    #if verbose:
+    #    print('Finished convolution of image')
 
     mask[middle,middle] = 0	#From now on we exclude the central pixel
     pixels = pixels -1      #so the number of valid pixels is reduced by 1
     good = np.where(mask)   #"good" identifies position of valid pixels
-    xx= good[1] - middle    #x and y coordinate of valid pixels 
+    xx= good[1] - middle    #x and y coordinate of valid pixels
     yy = good[0] - middle   #relative to the center
 
     offset = yy*n_x + xx
@@ -239,14 +239,14 @@ def find(image,
     sharp = np.zeros(ngood)
     roundness = np.zeros(ngood)
 
-    if verbose:
-        print('     STAR      X      Y     FLUX     SHARP    ROUND')
+    #if verbose:
+    #    print('     STAR      X      Y     FLUX     SHARP    ROUND')
 
     #  Loop over star positions# compute statistics
 
     for i in range(ngood):
         temp = image[iy[i]-nhalf:iy[i]+nhalf+1,ix[i]-nhalf:ix[i]+nhalf+1]
-        d = h[iy[i],ix[i]]                  #"d" is actual pixel intensity        
+        d = h[iy[i],ix[i]]                  #"d" is actual pixel intensity
 
         #  Compute Sharpness statistic
         sharp1 = (temp[middle,middle] - (np.sum(mask*temp))/pixels)/d
@@ -255,7 +255,7 @@ def find(image,
             continue #Does not meet sharpness criteria
 
         #   Compute Roundness statistic
-        dx = np.sum( np.sum(temp,axis=0)*c1)   
+        dx = np.sum( np.sum(temp,axis=0)*c1)
         dy = np.sum( np.sum(temp,axis=1)*c1)
         if (dx <= 0) or (dy <= 0):
             badround = badround + 1
@@ -267,14 +267,14 @@ def find(image,
 
         #
         # Centroid computation:   The centroid computation was modified in Mar 2008 and
-        # now differs from DAOPHOT which multiplies the correction dx by 1/(1+abs(dx)). 
+        # now differs from DAOPHOT which multiplies the correction dx by 1/(1+abs(dx)).
         # The DAOPHOT method is more robust (e.g. two different sources will not merge)
-        # especially in a package where the centroid will be subsequently be 
+        # especially in a package where the centroid will be subsequently be
         # redetermined using PSF fitting.   However, it is less accurate, and introduces
-        # biases in the centroid histogram.   The change here is the same made in the 
-        # IRAF DAOFIND routine (see 
+        # biases in the centroid histogram.   The change here is the same made in the
+        # IRAF DAOFIND routine (see
         # http://iraf.net/article.php?story=7211;query=daofind )
-        #    
+        #
 
         sd = np.sum(temp*ywt,axis=0)
         sumgd = np.sum(wt*sgy*sd)
@@ -282,7 +282,7 @@ def find(image,
         sddgdx = np.sum(wt*sd*dgdx)
         hx = (sumgd - sumgx*sumd/p) / (sumgsqy - sumgx**2/p)
         # HX is the height of the best-fitting marginal Gaussian.   If this is not
-        # positive then the centroid does not make sense 
+        # positive then the centroid does not make sense
         if (hx <= 0):
             badcntrd = badcntrd + 1
             continue
@@ -317,12 +317,12 @@ def find(image,
         roundness[nstar] = around
         nstar = nstar+1
 
-    # REJECT: 
+    # REJECT:
     nstar = nstar-1 #NSTAR is now the index of last star found
-    if verbose:
-        print(' No. of sources rejected by SHARPNESS criteria',badsharp)
-        print(' No. of sources rejected by ROUNDNESS criteria',badround)
-        print(' No. of sources rejected by CENTROID  criteria',badcntrd)
+    #if verbose:
+    #    print(' No. of sources rejected by SHARPNESS criteria',badsharp)
+    #    print(' No. of sources rejected by ROUNDNESS criteria',badround)
+    #    print(' No. of sources rejected by CENTROID  criteria',badcntrd)
 
     if nstar < 0: return               #Any stars found?
 

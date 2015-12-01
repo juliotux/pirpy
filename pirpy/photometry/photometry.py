@@ -161,7 +161,7 @@ class ResultStore(object):
                 if id in self._objects_in_frame(i).flat:
                     frames.append(i)
         else:
-            for i in self.groups[group]:
+            for i in self.groups[frame_group]:
                 if id in self._objects_in_frame(i).flat:
                     frames.append(i)
 
@@ -169,7 +169,10 @@ class ResultStore(object):
             obj_list = set([])
             for i in frames:
                 obj_list = obj_list.union(self._objects_in_frame(i).flat)
-            obj_list.remove(id)
+            try:
+                obj_list.remove(id)
+            except:
+                dummy = 0
 
             objs = np.empty(0, dtype='a32')
             for i in obj_list:
@@ -296,7 +299,7 @@ class ResultStore(object):
                     try:
                         fit_parameters[j] = literal_eval(fd['fit_parameters'][j])
                     except ValueError:
-                        fit_parameters[j] = literal_eval(fd['fit_parameters'][j].replace('nan','\'nan\''))
+                        fit_parameters[j] = literal_eval(fd['fit_parameters'][j].replace('nan','\'nan\'').replace('inf','\'inf\''))
                 fit_parameters = np.array(fit_parameters, dtype=literal_eval(fh['PARAMS']))
             else:
                 fit_parameters = None
@@ -307,7 +310,7 @@ class ResultStore(object):
                     try:
                         fit_parameters_errors[j] = literal_eval(fd['fit_parameters_errors'][j])
                     except ValueError:
-                        fit_parameters_errors[j] = literal_eval(fd['fit_parameters_errors'][j].replace('nan','\'nan\''))
+                        fit_parameters_errors[j] = literal_eval(fd['fit_parameters_errors'][j].replace('nan','\'nan\'').replace('inf','\'inf\''))
                 fit_parameters_errors = np.array(fit_parameters_errors, dtype=literal_eval(fh['PARAMS']))
             else:
                 fit_parameters_errors = None

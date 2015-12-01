@@ -68,22 +68,22 @@ class GaussianPSF(ModelPSF):
     g = psf_kernels.gaussian()
     @property
     def radial_dtype(self):
-        return np.dtype([('x','float64'),('y','float64'),('flux','float64'),('parameters',np.dtype(zip(['amplitude','sgima','sky'],
+        return np.dtype([('x','float64'),('y','float64'),('flux','float64'),('parameters',np.dtype(zip(['amplitude','sigma','sky'],
                         ['float64']*3)))])
+
+    @property
+    def spatial_dtype(self):
+        return np.dtype([('x','float64'),('y','float64'),('flux','float64'),('parameters',np.dtype(zip(['amplitude','sigma_x','sigma_y','theta','sky'],
+                        ['float64']*5)))])
 
     def radial_kernel(self, x, amplitude, sigma, sky):
         return self.g.radial(x, sigma, amplitude, sky)
 
+    def spatial_kernel(self, (x, y), x_0, y_0, amplitude, sigma_x, sigma_y, theta, sky):
+        return self.g.spatial(x, y, x_0, y_0, sigma_x, sigma_y, theta, amplitude) + sky
+
     @staticmethod
     def radial_flag_data(result_array):
-        for i in range(len(result_array)):
-            result_array[i]['sigma'] = np.abs(result_array[i]['sigma'])
-        median_sigma = np.nanmedian(result_array['sigma'])
-        std_sigma = np.nanstd(result_array['sigma'])
-        for i in range(len(result_array)):
-            if np.abs(result_array[i]['sigma']-median_sigma) > 3*std_sigma:
-                result_array[i]['flag'] = result_array[i]['flag'] + fitting_flags['sigma_discrepancy']
-
         return result_array
 
     @staticmethod
@@ -91,7 +91,7 @@ class GaussianPSF(ModelPSF):
         return result_array
 
     def flux_compute(self, params, errors=None):
-        if len(params) == 4:
+        if len(params) == 5:
             flux = 2*np.pi*params[0]*np.abs(params[1]*params[2])
         elif len(params) == 3:
             flux = 2*np.pi*params[0]*np.abs(params[1]*params[1])
@@ -106,27 +106,47 @@ class GaussianPSF(ModelPSF):
         if errors is not None:
             if len(params) == 3:
                 flux_error = flux*(errors[0]/params[0] + 2*errors[1]/params[1])
-            elif len(params) == 4:
+            elif len(params) == 5:
                 flux_error = flux*(errors[0]/params[0] + errors[1]/params[1] + errors[2]/params[2])
 
         return flux, flux_error
 
-    def fit(self, x, y, data, position):
+    def fit(self, x, y, data, position, sky=0.0):
+        xp, yp = position
         if self.fit_mode == 'radial':
-            r, f = xy2r(x, y, data, position[0], position[1])
+            r, f = xy2r(x, y, data, xp, yp)
             try:
                 params, p_errors = curve_fit(self.evaluate, r, f)
+                p_errors = tuple([i for i in np.diag(p_errors)])
             except:
-                params, p_errors = np.array([np.nan]*3).reshape(3), np.array([np.nan]*9).reshape((3,3))
-            p_errors = np.diag(p_errors)
-            try:
-                flux, flux_error = self.flux_compute(params, p_erros)
-            except:
-                flux, flux_error = np.nan, np.nan
+                nantuple = tuple([np.nan]*3)
+                params, p_errors = nantuple, nantuple
 
-            result = np.array([(flux, params)], dtype=self.dtype)
-            errors = np.array([(flux_error, p_errors)], dtype=self.dtype)
-            return result, errors
+        elif self.fit_mode == 'spatial':
+            d = data.astype('float64').ravel()
+            xi = x.astype('float64').ravel()
+            yi = y.astype('float64').ravel()
+            try:
+                params, p_errors = curve_fit(self.evaluate, (xi, yi), d, p0=(xp, yp, 1, 1, 1, 0, sky))
+                p_errors = tuple([i for i in np.diag(p_errors)])
+            except:
+                nantuple = tuple([np.nan]*7)
+                params, p_errors = nantuple, nantuple
+
+            (xp, yp), (xp_err, yp_err) = params[0:2], p_errors[0:2]
+            params, p_errors = params[2:] , p_errors[2:]
+
+        try:
+            flux, flux_error = self.flux_compute(params, p_errors)
+        except:
+            flux, flux_error = np.nan, np.nan
+
+        result = np.array([(xp, yp, flux, params)], dtype=self.dtype)
+        if self.fit_mode == 'radial':
+            errors = np.array([(0, 0, flux_error, p_errors)], dtype=self.dtype)
+        elif self.fit_mode == 'spatial':
+            errors = np.array([(xp_err, yp_err, flux_error, p_errors)], dtype=self.dtype)
+        return result, errors
 
 class MoffatPSF(ModelPSF):
     m = psf_kernels.moffat()
@@ -155,8 +175,9 @@ class MoffatPSF(ModelPSF):
         return flux, flux_error
 
     def fit(self, x, y, data, position, sky=0.0):
+        xp, yp = position
+
         if self.fit_mode == 'radial':
-            xp, yp = position
             r, f = xy2r(x, y, data, xp, yp)
             try:
                 params, p_errors = curve_fit(self.evaluate, r, f)
@@ -167,7 +188,6 @@ class MoffatPSF(ModelPSF):
 
         if self.fit_mode == 'spatial':
             try:
-                xp, yp = position
                 guess = (xp, yp, 1, 1, 1, sky)
                 params, p_errors = curve_fit(self.evaluate, (x,y), data.ravel(), p0=guess)
                 p_errors = tuple([i for i in np.diag(p_errors)])
