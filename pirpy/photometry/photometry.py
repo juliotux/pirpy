@@ -41,6 +41,7 @@ class Frame(object):
         self.data = np.zeros(0, dtype=phot_type)
         self.params = None
         self.params_errors = None
+        self._inst_magnitudes = None
 
     def add_result(self, id, x, y, flux, flux_err, params=None, params_errors=None):
         self.add_results([id],[x],[y],[flux],[flux_err],[params],[params_erros])
@@ -69,7 +70,9 @@ class Frame(object):
         return -2.5*np.log10(self.data[self.data['id'] == id]['flux'])
 
     def instrumental_magnitudes(self):
-        return self.data['id'], -2.5*np.log10(self.data['flux'])
+        if self._inst_magnitudes == None:
+            self._inst_magnitudes = -2.5*np.log10(self.data['flux'])
+        return self.data['id'], self._inst_magnitudes
 
 class ResultStore(object):
     '''
@@ -175,39 +178,40 @@ class ResultStore(object):
                 dummy = 0
 
             objs = np.empty(0, dtype='a32')
+            objs_mags = np.empty(0, dtype='float64')
             for i in obj_list:
                 mag = self.object_catalog.get_mag(i)
                 if not np.isnan(mag) and mag_limits[0] <= mag <= mag_limits[1]:
-                    objs = np.append(objs, np.array([i], dtype='a32'))
+                    objs = np.append(objs, str(i))
+                    objs_mags = np.append(objs_mags, mag)
 
             del obj_list
 
-            results = np.array([np.nan]*n_it, dtype='float64')
-            n_it_objs = int(len(objs)*percentage)
+            results = np.array([np.nan]*len(frames), dtype='float64')
 
-            for i in range(n_it):
-                it_objs = np.random.choice(objs, n_it_objs)
+            for k in range(len(frames)):
+                f = self.frames[frames[k]]
 
-                it_mags = np.zeros(0, dtype='float64')
+                f_ids = f.data['id']
+                inst_mags = f.instrumental_magnitudes()[1]
+                f_objs, f_ref_mags, f_inst_mags = zip(*[(objs[objs == f_ids[i]][0],
+                                                         objs_mags[objs == f_ids[i]][0],
+                                                         inst_mags[i]) for i in range(len(f_ids)) if f_ids[i] in objs.flat])
 
-                for k in frames:
-                    f = self.frames[k]
-                    f_mags = np.array([np.nan]*n_it_objs, dtype='float64')
+                f_difs = np.array(f_ref_mags) - np.array(f_inst_mags)
+                obj_mag = inst_mags[f_ids == id]
+                if len(obj_mag > 0):
+                    obj_mag = obj_mag[0]
 
-                    obj_mag = f.instrumental_magnitude(id)
-                    if len(obj_mag) > 0:
-                        obj_mag = obj_mag[0]
-                        for j in range(n_it_objs):
-                            ref_mag = f.instrumental_magnitude(it_objs[j])
-                            if len(ref_mag) > 0:
-                                ref_mag = ref_mag[0]
-                                ref_cat_mag = self.object_catalog.get_mag(it_objs[j])
-                                f_mags[j] = obj_mag + (ref_cat_mag - ref_mag)
-                            else:
-                                f_mags[j] = np.nan
+                    it_mags = np.zeros(0, dtype='float64')
+                    for i in range(n_it):
+                        it_choice = np.random.choice(len(f_objs), int(len(f_objs)*percentage))
+                        it_mags = np.append(it_mags, np.nanmedian(obj_mag + f_difs[it_choice]))
 
-                    it_mags = np.append(it_mags, np.nanmedian(f_mags))
-                results[i] = np.nanmedian(it_mags)
+                    results[k] = np.nanmedian(it_mags)
+
+                else:
+                    results[k] = np.nan
 
         elif algorithm == 'median':
             results = np.array([np.nan]*len(frames), dtype='float64')

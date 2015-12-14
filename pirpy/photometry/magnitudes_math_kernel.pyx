@@ -19,15 +19,15 @@ def flux2mag(double mag, double f0=1):
 @cython.wraparound(False)
 @cython.boundscheck(False)
 @cython.cdivision(True)
-cdef class MonteCarloMag():
-    cdef readonly np.ndarray obj_fluxes, ref_fluxes, ref_mags
+def iteration(double obj_flux, np.ndarray[double, ndim=1] ref_inst_mags, np.ndarray[double, ndim=1] ref_mag):
+    cdef double obj_mag = flux2mag(obj_flux)
+    cdef int n = len(inst_mags)
+    cdef double [:] inst_mags = ref_inst_mags
+    cdef double [:] refs = ref_mag
+    cdef double [:] results = np.zeros(n, dtype=double)
 
-    def iteration(double obj_flux, double ref_flux, np.ndarray ref_mag):
-        cdef double obj_mag = flux2mag(obj_flux)
-        cdef int n = len(ref_flux)
-        cdef double [:] results = np.zeros(n, dtype=double)
+    cdef int i
+    for i in prange(n, nogil=True):
+        results[i] = obj_mag + (refs[i] - inst_mags[i])
 
-        for i in prange(n, nogil=True):
-            results[i] = obj_mag + (ref_mag[i], flux2mag(ref_flux[i]))
-
-        return np.median(results)
+    return np.median(results)
