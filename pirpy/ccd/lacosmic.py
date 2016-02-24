@@ -5,12 +5,11 @@ Handle astroscrappy functions for multiple files.
 from astroscrappy import detect_cosmics
 
 from ..mp import mult_ret
-from ..math.ccd_type import verify_ccdlist
+from .ccddata import verify_ccdlist
 
 def __cosmics(ccddata):
-    # ccddata: ccdproc.CCDData instance
+    # ccddata: CCDData instance
     ccddata.data = detect_cosmics(ccddata.data)[1]
-    return ccddata
 
 def lacosmic_subtract(ccdlist, **kwargs):
     '''
