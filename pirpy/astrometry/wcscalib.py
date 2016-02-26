@@ -13,7 +13,7 @@ from astropy.io import fits
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 
-from ..io import mkdir_p
+from ..io.io_tool import mkdir_p
 from ..mp import call_mp
 
 __all__ = ['WCSCalib']

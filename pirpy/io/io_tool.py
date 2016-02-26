@@ -4,11 +4,23 @@ Module to handle io operations using multiprocess or batch operations.
 
 from astropy import units as u
 from os.path import join
+from os import makedirs
+import os
+import errno
 from astropy.io import fits
 
 from ..mp import mult_ret
+from ..ccd.ccddata import load_fits, set_ccd_dtype
 
-__all__ = ['path_join','ccd_read']
+__all__ = ['path_join', 'mkdir_p']
+
+def mkdir_p(fname):
+    try:
+        makedirs(fname)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST and os.path.isdir(fname):
+            #TODO: implement a log.info here
+            pass
 
 ################################################################################
 
@@ -43,40 +55,3 @@ def path_join(path, filelist, **kwargs):
                         kwargs.get('nprocess',1))
     elif isinstance(filelist, basestring):
         return _path_join([path,filelist])
-
-################################################################################
-
-def _read(filename, unit, dtype=None):
-    '''
-    Wrap the CCDData.read, including a dtype variable to
-    save memory.
-    '''
-    dat = CCDData.read(filename, unit=unit)
-    if not dtype is None:
-        dat.data = dat.data.astype(dtype)
-    return dat
-
-def ccd_read(filelist, **kwargs):
-    '''
-    Reads .fits files into ccdproc.CCDData instances.
-
-    Parameters:
-        filelist : string or list of strings
-            The list containing the filenames to read.
-        unit (optional) : ~astropy.unit~
-            The unit of the images.
-
-    Returns:
-        list of ~ccdproc.CCDData~
-            The data of the files.
-    '''
-    unit = kwargs.pop('unit', u.adu)
-    dt = kwargs.pop('dtype',None)
-    data = []
-    if isinstance(filelist, list):
-        for i in filelist:
-            data.append(_read(i, unit, dt))
-    elif isinstance(filelist, basestring):
-        data.append(_read(filelist, unit, dt))
-
-    return data

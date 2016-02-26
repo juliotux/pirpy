@@ -8,6 +8,8 @@ import numpy as np
 
 #TODO: implement trim image
 
+__all__ = ['CCDData', 'add_keyword', 'load_fits', 'save_fits', 'verify_ccdlist', 'set_ccd_dtype']
+
 class CCDData(object):
     def __init__(self, data, header=None, unit=None, keywords=None, mask=None):
         #if mask is None:
@@ -50,6 +52,17 @@ class CCDData(object):
     def __getitem__(self, x):
         return self._data[x]
 
+    @property
+    def shape(self):
+        return self.data.shape
+
+    @property
+    def exposure(self):
+        return self.header['EXPTIME']
+
+def set_ccd_dtype(ccd, dtype):
+    ccd._data = ccd._data.astype(dtype)
+
 def add_keyword(ccd, keyword, value=1, overwrite=True):
     '''
     Adds a keyword to a CCDData keywords dict.
@@ -65,14 +78,15 @@ def load_fits(fname, hdu=0, unit='adu'):
     f = fits.open(fname)
     return CCDData(f[hdu].data, header=f[hdu].header, unit=unit)
 
-def save_fits(fname, ccddata, dtype=None):
+def save_fits(fname, ccd, dtype=None):
     '''
     Save a CCDData frame to a fits file.
     '''
     if dtype is None:
-        dtype = ccddata.data.dtype
+        dtype = ccd.data.dtype
     #TODO: transform keywords to header fields.
-    hdu = fits.PrimaryHDU(ccddata.data.astype(dtype), header=ccddata.header)
+    set_ccd_dtype(ccd, dtype)
+    hdu = fits.PrimaryHDU(ccd.data, header=ccd.header)
     hdulist = fits.HDUList([hdu])
     hdu.writeto(fname)
 

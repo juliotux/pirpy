@@ -14,6 +14,7 @@ from .find import find
 from .psf_fitting import psf_photometry
 from .photometry import ResultStore
 from ..math.list_tools import to_list, match_lengths
+#TODO: Change math.gaussian to psf_fitting methods and delete math.gaussian
 from ..math.gaussian import calc_fwhm
 
 from ..log import log

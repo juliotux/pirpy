@@ -1,22 +1,11 @@
 import numpy as np
+
 from .ccddata import CCDData, load_fits, add_keyword
 from .lacosmic import lacosmic_subtract
+from ..math.array_math import *
+from ..mp import mult_ret
 
-try:
-    import bottleneck as bn
-    nmedian = bn.nanmedian
-    nmean = bn.nanmean
-    nstd = bn.nanstd
-    nmin = bn.nanmin
-    nmax = bn.nanmax
-    nvar = bn.nanvar
-except NameError:
-    nmedian = np.nanmedian
-    nmean = np.nanmean
-    nstd = np.nanstd
-    nmin = np.nanmin
-    nmax = np.nanmax
-    nvar = np.nanvar
+__all__ = ['ccd_math', 'combine_bias', 'combine_flat', 'subtract_bias', 'divide_flat', 'files_or_ccd']
 
 def func_list(func, ccd_list, *args, **kwargs):
     '''
@@ -90,10 +79,8 @@ def files_or_ccd(**kwargs):
 
     if 'file_list' in kwargs.keys():
         file_list = kwargs.pop('file_list')
-        ccd_list = []
         if isinstance(file_list, (tuple, list, set)):
-            for i in file_list:
-                ccd_list.append(load_fits(i))
+            ccd_list = mult_ret(load_fits, file_list, kwargs.get('nprocess',1))
         else:
             raise ValueError('file_list have a wrong format.')
 
@@ -160,14 +147,21 @@ def combine_flat(**kwargs):
     #TODO: implement with dark correction
     ccd_list = files_or_ccd(**kwargs)
     method = get_method(**kwargs)
-    master_bias = kwargs.pop('master_bias')
+
+    if 'master_bias' in kwargs.keys():
+        master_bias = kwargs.pop('master_bias')
+    else:
+        master_bias = None
 
     if kwargs.get('lacosmic', False):
         lacosmic_subtract(ccd_list)
 
     for ccd in ccd_list:
         if 'bias_corrected' not in ccd.keywords.keys():
-            subtract_bias(ccd, master_bias)
+            if master_bias is not None:
+                subtract_bias(ccd, master_bias)
+            elif not kwargs.get('skip_bias', False):
+                raise ValueError('No valid master_bias was given for the bias correction.')
 
     func = combine_funcs[method]
     result = func(ccd_list)
